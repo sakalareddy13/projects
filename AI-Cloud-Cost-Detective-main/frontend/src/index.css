@@ -1,0 +1,446 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes spin    { from { transform: rotate(0deg); }   to { transform: rotate(360deg); } }
+@keyframes fadeUp  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes zoomIn  { from { opacity: 0; transform: scale(0.96); }      to { opacity: 1; transform: scale(1); } }
+@keyframes pulse   { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* ══════════════════════════════════════════════════════════
+   LIGHT THEME — clean, premium SaaS look
+   ══════════════════════════════════════════════════════════ */
+:root {
+  /* Brand */
+  --gold-light:  #F0C84A;
+  --gold-mid:    #C9922A;
+  --gold-dark:   #9A6B10;
+  --brand-from:  #6366f1;
+  --brand-to:    #7c3aed;
+
+  /* Page — barely tinted off-white */
+  --page-bg: linear-gradient(155deg, #eef2ff 0%, #fafbfe 45%, #f5f0ff 100%);
+
+  /* Text — slate scale */
+  --color-text:           #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary:  #9ca3af;
+
+  /* Card — white + layered shadow */
+  --color-card-bg:      #ffffff;
+  --color-card-border:  rgba(99, 102, 241, 0.12);
+  --color-card-shadow:  0 1px 3px rgba(0,0,0,0.07), 0 10px 28px rgba(99,102,241,0.07);
+  --color-summary-bg:   #ffffff;
+
+  /* Input */
+  --color-input-bg:     #ffffff;
+  --color-input-border: #d1d5db;
+
+  /* Ghost */
+  --color-ghost-text:       #374151;
+  --color-ghost-bg:         rgba(0,0,0,0.05);
+  --color-ghost-hover-text: #111827;
+  --color-ghost-hover-bg:   rgba(0,0,0,0.09);
+
+  /* Inner section boxes */
+  --color-section-bg:     #f1f5f9;
+  --color-section-border: #cbd5e1;
+
+  /* Code */
+  --color-code-bg:      #f1f5f9;
+  --color-code-border:  #e2e8f0;
+  --color-code-divider: #e2e8f0;
+
+  /* Select */
+  --color-select-bg:   #ffffff;
+  --color-select-text: #111827;
+
+  /* Scrollbar */
+  --scrollbar-track: rgba(0,0,0,0.04);
+  --scrollbar-thumb: rgba(0,0,0,0.16);
+
+  /* Progress */
+  --color-progress-track: #e5e7eb;
+
+  /* Auth card */
+  --color-auth-card-bg:     #ffffff;
+  --color-auth-card-border: rgba(99,102,241,0.14);
+  --color-auth-card-shadow: 0 4px 6px rgba(0,0,0,0.04), 0 24px 56px rgba(99,102,241,0.1);
+  --color-auth-heading:     #111827;
+  --color-auth-subtext:     #6b7280;
+  --color-auth-link:        #4f46e5;
+
+  /* Navy colours (navbar) */
+  --navy-deep: #060b18;
+  --navy-card: #0d1929;
+}
+
+/* ══════════════════════════════════════════════════════════
+   DARK THEME — deep navy glass morphism
+   ══════════════════════════════════════════════════════════ */
+:root.dark {
+  --page-bg: linear-gradient(155deg, #060917 0%, #0a1528 42%, #0f1f42 70%, #17103a 100%);
+
+  --color-text:           #f1f5f9;
+  --color-text-secondary: rgba(241,245,249,0.58);
+  --color-text-tertiary:  rgba(241,245,249,0.36);
+
+  --color-card-bg:      rgba(9,15,40,0.80);
+  --color-card-border:  rgba(99,102,241,0.18);
+  --color-card-shadow:  0 4px 24px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.04) inset;
+  --color-summary-bg:   rgba(9,15,40,0.88);
+
+  --color-input-bg:     rgba(255,255,255,0.06);
+  --color-input-border: rgba(99,102,241,0.36);
+
+  --color-ghost-text:       rgba(241,245,249,0.65);
+  --color-ghost-bg:         rgba(255,255,255,0.07);
+  --color-ghost-hover-text: #f1f5f9;
+  --color-ghost-hover-bg:   rgba(255,255,255,0.13);
+
+  --color-section-bg:     rgba(255,255,255,0.04);
+  --color-section-border: rgba(165,180,252,0.18);
+
+  --color-code-bg:      rgba(0,0,0,0.30);
+  --color-code-border:  rgba(99,102,241,0.22);
+  --color-code-divider: rgba(255,255,255,0.07);
+
+  --color-select-bg:    rgba(10,18,44,0.9);
+  --color-select-text:  rgba(241,245,249,0.82);
+
+  --scrollbar-track: rgba(0,0,0,0.18);
+  --scrollbar-thumb: rgba(255,255,255,0.18);
+
+  --color-progress-track: rgba(255,255,255,0.1);
+
+  --color-auth-card-bg:     rgba(7,12,28,0.90);
+  --color-auth-card-border: rgba(240,200,74,0.12);
+  --color-auth-card-shadow: 0 24px 72px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04);
+  --color-auth-heading:     #f1f5f9;
+  --color-auth-subtext:     rgba(241,245,249,0.4);
+  --color-auth-link:        rgba(240,200,74,0.82);
+}
+
+/* ══════════════════════════════════════════════════════════
+   BASE
+   ══════════════════════════════════════════════════════════ */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    @apply antialiased;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: var(--page-bg);
+    color: var(--color-text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar       { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 999px; }
+
+  ::selection { background: rgba(99,102,241,0.2); color: inherit; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   LIGHT MODE — remap Tailwind utilities inside <main>
+   The .app-banner sits outside <main> and is always dark.
+   ══════════════════════════════════════════════════════════ */
+:root:not(.dark) main .text-white      { color: var(--color-text); }
+:root:not(.dark) main .text-gray-100   { color: #1e293b; }
+:root:not(.dark) main .text-gray-200   { color: #334155; }
+:root:not(.dark) main .text-gray-300   { color: #4b5563; }
+:root:not(.dark) main .text-gray-400   { color: #6b7280; }
+:root:not(.dark) main .text-gray-500   { color: #6b7280; }
+:root:not(.dark) main .text-green-400  { color: #16a34a; }
+:root:not(.dark) main .text-indigo-400 { color: #4f46e5; }
+:root:not(.dark) main .text-indigo-300 { color: #6366f1; }
+:root:not(.dark) main .text-red-300    { color: #dc2626; }
+:root:not(.dark) main .text-red-400    { color: #dc2626; }
+
+/* Fix hover:text-white — white on white is invisible in light mode */
+:root:not(.dark) main .hover\:text-white:hover { color: var(--color-text) !important; }
+
+/* Fix dark-theme error boxes in light mode */
+:root:not(.dark) main .bg-red-900\/40,
+:root:not(.dark) main .bg-red-900\/50 {
+  background-color: rgba(254,226,226,0.85) !important;
+}
+:root:not(.dark) main .border-red-700\/60,
+:root:not(.dark) main .border-red-700 {
+  border-color: rgba(252,165,165,0.7) !important;
+}
+:root:not(.dark) main .text-red-300 { color: #b91c1c; }
+
+/* Fix dark-theme success boxes in light mode */
+:root:not(.dark) main .bg-green-900\/50 {
+  background-color: rgba(220,252,231,0.9) !important;
+}
+:root:not(.dark) main .border-green-700 {
+  border-color: rgba(134,239,172,0.8) !important;
+}
+:root:not(.dark) main .text-green-300 { color: #15803d !important; }
+
+/* ══════════════════════════════════════════════════════════
+   COMPONENTS
+   ══════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── Enterprise badges ── */
+  .enterprise-edition-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: linear-gradient(135deg, var(--gold-dark) 0%, var(--gold-light) 50%, var(--gold-dark) 100%);
+    border-radius: 5px;
+    padding: 2px 9px;
+    font-size: 0.62rem;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    box-shadow: 0 1px 8px rgba(201,146,42,0.4);
+  }
+
+  .enterprise-tier-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(240,200,74,0.45);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--gold-light);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    background: rgba(240,200,74,0.08);
+  }
+
+  /* ── Glass / solid card ── */
+  .card {
+    background: var(--color-card-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--color-card-border);
+    @apply rounded-2xl p-6;
+    box-shadow: var(--color-card-shadow);
+    transition: box-shadow 0.2s ease;
+  }
+
+  /* ── Stat card ── */
+  .summary-card {
+    background: var(--color-summary-bg);
+    backdrop-filter: blur(14px);
+    border-top-width: 3px;
+    @apply rounded-xl p-5 text-center;
+    box-shadow: var(--color-card-shadow);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .summary-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 28px rgba(99,102,241,0.16);
+  }
+
+  /* ── Primary button (indigo→violet) ── */
+  .btn-primary {
+    background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+    @apply text-white font-semibold px-5 py-2.5 rounded-xl
+           disabled:opacity-40 disabled:cursor-not-allowed;
+    box-shadow: 0 4px 14px rgba(99,102,241,0.38);
+    transition: all 0.15s ease;
+    letter-spacing: 0.01em;
+    font-size: 0.9375rem;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
+    box-shadow: 0 6px 22px rgba(99,102,241,0.5);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+  }
+
+  /* ── Ghost button ── */
+  .btn-ghost {
+    @apply px-3 py-1.5 rounded-lg;
+    color: var(--color-ghost-text);
+    background: var(--color-ghost-bg);
+    transition: all 0.12s ease;
+    font-size: 0.875rem;
+  }
+  .btn-ghost:hover {
+    color: var(--color-ghost-hover-text);
+    background: var(--color-ghost-hover-bg);
+  }
+
+  /* Navbar always-dark override */
+  .app-banner .btn-ghost {
+    color: rgba(255,255,255,0.65);
+    background: rgba(255,255,255,0.07);
+    border-radius: 8px;
+  }
+  .app-banner .btn-ghost:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.13);
+  }
+
+  /* ── Input ── */
+  .input {
+    @apply w-full rounded-xl px-4 py-2.5 focus:outline-none;
+    color: var(--color-text);
+    background: var(--color-input-bg);
+    border: 1.5px solid var(--color-input-border);
+    font-size: 0.9375rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .input::placeholder  { color: var(--color-text-tertiary); }
+  .input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.16);
+  }
+
+  /* ── Severity badges ── */
+  .badge-high {
+    display: inline-flex; align-items: center;
+    font-size: 0.68rem; font-weight: 700;
+    padding: 0.14rem 0.52rem;
+    border-radius: 9999px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: rgba(220,38,38,0.1);
+    color: #b91c1c;
+    border: 1px solid rgba(220,38,38,0.28);
+  }
+  :root.dark .badge-high {
+    background: rgba(127,29,29,0.55);
+    color: #fca5a5;
+    border-color: rgba(185,28,28,0.55);
+  }
+
+  .badge-medium {
+    display: inline-flex; align-items: center;
+    font-size: 0.68rem; font-weight: 700;
+    padding: 0.14rem 0.52rem;
+    border-radius: 9999px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: rgba(202,138,4,0.1);
+    color: #92400e;
+    border: 1px solid rgba(202,138,4,0.28);
+  }
+  :root.dark .badge-medium {
+    background: rgba(120,53,15,0.55);
+    color: #fde68a;
+    border-color: rgba(180,83,9,0.55);
+  }
+
+  .badge-low {
+    display: inline-flex; align-items: center;
+    font-size: 0.68rem; font-weight: 700;
+    padding: 0.14rem 0.52rem;
+    border-radius: 9999px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: rgba(22,163,74,0.1);
+    color: #166534;
+    border: 1px solid rgba(22,163,74,0.28);
+  }
+  :root.dark .badge-low {
+    background: rgba(20,83,45,0.55);
+    color: #86efac;
+    border-color: rgba(21,128,61,0.55);
+  }
+
+  /* ── Navbar ── */
+  .app-banner {
+    background: linear-gradient(135deg, #040b17 0%, #081525 55%, #0d1c3c 100%);
+    color: #fff;
+    overflow: hidden;
+    position: relative;
+    border-bottom: 1px solid rgba(240,200,74,0.12);
+  }
+
+  .app-logo-badge {
+    background: linear-gradient(135deg, #1a3a6e 0%, #2a5298 100%);
+    border-radius: 9px;
+    padding: 6px 13px;
+    display: flex;
+    align-items: center;
+    font-size: 1.05rem;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 2px;
+    font-family: Arial, sans-serif;
+    flex-shrink: 0;
+    border: 1px solid rgba(102,162,234,0.22);
+    box-shadow: 0 2px 10px rgba(42,82,152,0.3);
+  }
+
+  .aws-badge {
+    background: linear-gradient(135deg, var(--gold-dark) 0%, var(--gold-light) 100%);
+    border-radius: 7px;
+    padding: 5px 12px;
+    display: flex; align-items: center;
+    font-size: 1.05rem; font-weight: 900;
+    color: #fff; letter-spacing: 2px;
+    font-family: Arial, sans-serif; flex-shrink: 0;
+  }
+
+  .banner-stripe {
+    height: 2px;
+    background: linear-gradient(90deg,
+      transparent 0%, #1a3a6e 5%, #2a5298 18%,
+      var(--gold-mid) 42%, var(--gold-light) 50%, var(--gold-mid) 58%,
+      #2a5298 82%, #1a3a6e 95%, transparent 100%
+    );
+    opacity: 0.88;
+  }
+
+  /* ── Progress bar ── */
+  .progress-track {
+    flex: 1;
+    background: var(--color-progress-track);
+    border-radius: 999px;
+    height: 7px;
+    overflow: hidden;
+  }
+  .progress-fill          { height: 100%; border-radius: 999px; }
+  .progress-fill-indigo   { background: linear-gradient(90deg, #6366f1, #7c3aed); }
+  .progress-fill-green    { background: linear-gradient(90deg, #22c55e, #16a34a); }
+  .progress-fill-orange   { background: linear-gradient(90deg, #f59e0b, #FF9900); }
+
+  /* ── State dots ── */
+  .state-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+    flex-shrink: 0;
+  }
+  .state-dot-green  { background: #22c55e; }
+  .state-dot-yellow { background: #f59e0b; }
+  .state-dot-red    { background: #ef4444; }
+  .state-dot-blue   { background: #3b82f6; }
+
+  /* ── Theme toggle ── */
+  .btn-theme-toggle {
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.75);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, transform 0.2s;
+  }
+  .btn-theme-toggle:hover {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    transform: rotate(14deg) scale(1.06);
+  }
+}

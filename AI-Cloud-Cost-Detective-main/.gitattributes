@@ -1,0 +1,47 @@
+# Ensure consistent line endings across platforms.
+# Without this, Windows Git (core.autocrlf=true) converts LF→CRLF on checkout,
+# which breaks shell scripts inside Linux Docker containers (bad interpreter error).
+
+# Default: normalize all text files to LF in the repo
+* text=auto eol=lf
+
+# Shell scripts — must be LF; CRLF breaks the shebang inside Docker
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Docker files
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+
+# Python, JS, TS, config
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.env text eol=lf
+*.conf text eol=lf
+*.ini text eol=lf
+
+# Nginx config
+nginx.conf text eol=lf
+
+# Binaries — do not touch line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.svg text eol=lf

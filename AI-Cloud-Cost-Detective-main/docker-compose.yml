@@ -1,0 +1,99 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cost-detective-backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - path: ./backend/.env
+        required: false       # file is gitignored; app works without it (AI keys are optional)
+    environment:
+      HOME: /home/appuser
+      DATABASE_URL: postgresql://costdetective:costdetective@postgres:5432/costdetective
+      AWS_ORGANIZATIONS_ENABLED: "false"
+      AWS_ACCOUNTS_FILE: cloud_accounts.json
+      ALLOWED_ORIGINS: "*"
+    volumes:
+      - ./cloud_accounts.json:/app/cloud_accounts.json
+      - backend_data:/app/data
+      # Uncomment only if using AWS Organizations with SSO profiles (server-side auth):
+      # - ~/.aws:/home/appuser/.aws
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '2.0'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cost-detective-frontend
+    ports:
+      - "0.0.0.0:3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cost-detective-tunnel
+    command: tunnel --url http://frontend:80
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: cost-detective-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-costdetective}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-costdetective}
+      POSTGRES_DB: ${POSTGRES_DB:-costdetective}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-costdetective}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+  backend_data:

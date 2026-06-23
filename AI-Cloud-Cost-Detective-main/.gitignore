@@ -1,0 +1,70 @@
+# ── Secrets & credentials ────────────────────────────────────────────────────
+.env
+**/.env
+.env.*
+!.env.example
+
+aws_accounts.json
+*.json.bak
+
+# Cloud credential files
+gcp-credentials*.json
+service-account*.json
+*-service-account.json
+credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg
+*.egg-info/
+.eggs/
+build/
+venv/
+.venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Node / Frontend ──────────────────────────────────────────────────────────
+node_modules/
+dist/
+.npm/
+*.tsbuildinfo
+.eslintcache
+
+# ── Docker volumes ───────────────────────────────────────────────────────────
+postgres_data/
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── IDE & editor ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Claude Code session files ─────────────────────────────────────────────────
+.claude/
+
+# Owner-only signing key — NEVER commit
+backend/ownership.key
