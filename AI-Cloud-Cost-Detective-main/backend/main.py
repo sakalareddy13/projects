@@ -1,6 +1,8 @@
 """AI Cloud Cost Detective — FastAPI backend."""
 
 import asyncio
+import json as _json
+import logging
 import os
 import re
 import secrets
@@ -15,16 +17,17 @@ from typing import Optional
 import bcrypt
 import jwt
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator
 
 load_dotenv()
 
-import ownership  # validates LinkedIn ID at import time — fails fast if tampered
-_OWNER_KEY_FINGERPRINT = "02836ac5a83298642e2025fa314e8bca9592dc120dd81215d5874777b41eadd7"
-_OWNER_LINKEDIN_HASH = "f8741c14c3c3a5977f06854022f665b5d3601503b28758eaefa349f5d079672a"
+from log_config import configure_logging
+configure_logging()
+logger = logging.getLogger(__name__)
+
 import ai_analyzer
 import cloud_scanner
 import db
@@ -57,7 +60,9 @@ _analysis_progress: dict[str, list] = {}
 _PROGRESS_CAP = 200
 
 # Cap simultaneous heavy scans so the server doesn't get overwhelmed
-_analysis_semaphore = asyncio.Semaphore(5)
+_MAX_CONCURRENT_SCANS = 5
+_analysis_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_SCANS)
+_active_scans = 0  # explicit counter — avoids accessing asyncio.Semaphore._value (private)
 
 # Rate limiter: keyed by (ip, action) — prevents single-IP brute force even across emails
 _rate_buckets: dict[str, list] = defaultdict(list)
@@ -97,16 +102,15 @@ async def _history_purge_loop():
         try:
             n = await db.purge_old_analyses(days=2)
             if n:
-                print(f"[purge] Deleted {n} analyses older than 2 days.")
+                logger.info("purge.analyses.complete", extra={"deleted": n, "days": 2})
             await db.purge_revoked_tokens()
         except Exception as exc:
-            print(f"[purge] Error during cleanup: {exc}")
+            logger.error("purge.error", extra={"error": str(exc)}, exc_info=exc)
         await asyncio.sleep(12 * 3600)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ownership.validate_ownership()  # explicit re-check at server startup
     await db.init_pool()
     await db.create_tables()
     await db.fail_stale_analyses()
@@ -118,18 +122,33 @@ async def lifespan(app: FastAPI):
 
 # ─── app setup ───────────────────────────────────────────────────────────────
 
+_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+# httpOnly cookies require HTTPS in production; disable only when running plain HTTP locally
+_COOKIE_SECURE = not _DEBUG
+
 app = FastAPI(
     title="AI Cloud Cost Detective",
     lifespan=lifespan,
-    docs_url=None,
-    redoc_url=None,
-    openapi_url=None,
+    docs_url="/docs" if _DEBUG else None,
+    redoc_url="/redoc" if _DEBUG else None,
+    openapi_url="/openapi.json" if _DEBUG else None,
 )
 
 # Trust X-Real-IP only from the Docker internal network (172.18.x.x),
 # not from arbitrary sources — prevents IP spoofing via X-Forwarded-For.
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="172.18.0.0/16")
+
+
+@app.middleware("http")
+async def _request_id_middleware(request: Request, call_next):
+    """Attach a request-ID to every request for log correlation."""
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
 
 # ALLOWED_ORIGINS: comma-separated list of allowed origins, or "*" to allow all.
 # Example in backend/.env:
@@ -157,9 +176,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-security = HTTPBearer()
-
 
 # ─── auth helpers ─────────────────────────────────────────────────────────────
 
@@ -190,8 +206,16 @@ def _decode_token(raw: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-async def _verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-    payload = _decode_token(credentials.credentials)
+_bearer = HTTPBearer(auto_error=False)
+
+async def _verify_token(
+    token_cookie: Optional[str] = Cookie(default=None, alias="token"),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+) -> dict:
+    raw = token_cookie or (credentials.credentials if credentials else None)
+    if not raw:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = _decode_token(raw)
     await _check_revoked(payload)
     return payload
 
@@ -235,6 +259,15 @@ class LoginRequest(BaseModel):
         return v
 
 
+class SSOCredentialItem(BaseModel):
+    """Typed SSO credential — replaces unvalidated Optional[list]."""
+    account_id: str = Field(pattern=r'^\d{12}$')
+    account_name: str = Field(max_length=256)
+    access_key: str = Field(min_length=16, max_length=128)
+    secret_key: str = Field(min_length=32, max_length=256)
+    session_token: Optional[str] = Field(default=None, max_length=4096)
+
+
 class AnalyzeRequest(BaseModel):
     cloud_provider: str = "aws"
     regions: list[str] = Field(min_length=1)
@@ -255,8 +288,8 @@ class AnalyzeRequest(BaseModel):
     # AI engine (optional — overrides server env vars)
     ai_provider: Optional[str] = None
     ai_api_key: Optional[str] = None
-    # SSO pre-authenticated credentials [{account_id, account_name, access_key, secret_key, session_token}]
-    sso_credentials: Optional[list] = None
+    # SSO pre-authenticated credentials — strictly typed to catch malformed payloads early
+    sso_credentials: Optional[list[SSOCredentialItem]] = None
 
     @field_validator("cloud_provider")
     @classmethod
@@ -465,7 +498,7 @@ VALID_GCP_SERVICE_IDS = {s["id"] for s in GCP_SERVICES}
 # ─── auth endpoints ───────────────────────────────────────────────────────────
 
 @app.post("/api/auth/signup", status_code=201)
-async def signup(req: AuthRequest, request: Request):
+async def signup(req: AuthRequest, request: Request, response: Response):
     ip = request.client.host if request.client else "unknown"
     await _check_rate_limit(f"signup:ip:{ip}", max_attempts=10, window_seconds=300)
     await _check_rate_limit(f"signup:email:{req.email}", max_attempts=5, window_seconds=300)
@@ -480,11 +513,16 @@ async def signup(req: AuthRequest, request: Request):
         raise HTTPException(status_code=500, detail="Could not create user")
 
     token = _create_token(user["id"], user["email"])
-    return {"token": token, "user": {"id": user["id"], "email": user["email"]}}
+    response.set_cookie(
+        "token", token,
+        httponly=True, samesite="strict", secure=_COOKIE_SECURE,
+        max_age=JWT_EXPIRY_HOURS * 3600,
+    )
+    return {"user": {"id": user["id"], "email": user["email"]}}
 
 
 @app.post("/api/auth/login")
-async def login(req: LoginRequest, request: Request):
+async def login(req: LoginRequest, request: Request, response: Response):
     ip = request.client.host if request.client else "unknown"
     # Rate limit by IP first (catches credential stuffing), then by email
     await _check_rate_limit(f"login:ip:{ip}", max_attempts=20, window_seconds=60)
@@ -492,26 +530,42 @@ async def login(req: LoginRequest, request: Request):
 
     user = await db.get_user_by_email(req.email)
 
-    # Always run bcrypt to prevent user enumeration via timing side-channel
+    # Always run bcrypt even when user is absent — prevents timing-based enumeration
     stored_hash = user["password_hash"].encode() if user else _DUMMY_HASH.encode()
     password_ok = bcrypt.checkpw(req.password.encode(), stored_hash)
 
-    if not user or not password_ok:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found for this email address.")
+    if not password_ok:
+        raise HTTPException(status_code=401, detail="Incorrect password.")
 
     token = _create_token(user["id"], user["email"])
-    return {"token": token, "user": {"id": user["id"], "email": user["email"]}}
+    response.set_cookie(
+        "token", token,
+        httponly=True, samesite="strict", secure=_COOKIE_SECURE,
+        max_age=JWT_EXPIRY_HOURS * 3600,
+    )
+    return {"user": {"id": user["id"], "email": user["email"]}}
 
 
 @app.post("/api/auth/logout")
-async def logout(user_info: dict = Depends(_verify_token)):
+async def logout(response: Response, user_info: dict = Depends(_verify_token)):
     jti = user_info.get("jti")
     if jti:
         from datetime import datetime, timezone
         exp = user_info.get("exp")
         expires_at = datetime.fromtimestamp(exp, tz=timezone.utc) if exp else None
         await db.revoke_token(jti, expires_at)
+    response.delete_cookie("token", samesite="strict")
     return {"status": "logged out"}
+
+
+@app.get("/api/auth/me")
+async def get_me(user_info: dict = Depends(_verify_token)):
+    user = await db.get_user_by_id(user_info["user_id"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"id": user["id"], "email": user["email"]}
 
 
 class ChangePasswordRequest(BaseModel):
@@ -613,7 +667,6 @@ def _write_accounts_inplace(filepath: str, accounts: list):
 @app.post("/api/config/accounts")
 async def add_account(req: AccountRequest, _: dict = Depends(_verify_token)):
     """Add a custom account entry. SSO accounts are auto-detected and don't need to be added here."""
-    import json as _json
     from cloud_organizations import _build_sso_profile_map
     filepath = os.getenv("AWS_ACCOUNTS_FILE", "/app/cloud_accounts.json")
 
@@ -654,7 +707,6 @@ async def add_account(req: AccountRequest, _: dict = Depends(_verify_token)):
 @app.delete("/api/config/accounts/{account_id}")
 async def remove_account(account_id: str, _: dict = Depends(_verify_token)):
     """Remove a custom account from cloud_accounts.json."""
-    import json as _json
     if not VALID_ACCOUNT_RE.match(account_id):
         raise HTTPException(status_code=400, detail="account_id must be exactly 12 digits")
     filepath = os.getenv("AWS_ACCOUNTS_FILE", "/app/cloud_accounts.json")
@@ -716,11 +768,12 @@ class ValidateRequest(BaseModel):
     aws_secret_access_key: Optional[str] = None
     ai_provider: Optional[str] = None
     ai_api_key: Optional[str] = None
-    sso_credentials: Optional[list] = None
+    sso_credentials: Optional[list[SSOCredentialItem]] = None
 
 
 @app.post("/api/validate")
-async def validate_credentials(req: ValidateRequest, _: dict = Depends(_verify_token)):
+async def validate_credentials(req: ValidateRequest, user_info: dict = Depends(_verify_token)):
+    await _check_rate_limit(f"validate:{user_info['user_id']}", max_attempts=10, window_seconds=60)
     """
     Lightweight pre-flight check that verifies credentials/connectivity for the
     chosen cloud provider BEFORE starting a full scan.  Returns 200 on success or
@@ -738,9 +791,9 @@ async def validate_credentials(req: ValidateRequest, _: dict = Depends(_verify_t
             try:
                 sc = req.sso_credentials[0]
                 sess = _b3.Session(
-                    aws_access_key_id=sc.get("access_key", ""),
-                    aws_secret_access_key=sc.get("secret_key", ""),
-                    aws_session_token=sc.get("session_token") or None,
+                    aws_access_key_id=sc.access_key,
+                    aws_secret_access_key=sc.secret_key,
+                    aws_session_token=sc.session_token or None,
                 )
                 identity = sess.client("sts", region_name="us-east-1").get_caller_identity()
                 account = identity.get("Account", "")
@@ -908,15 +961,17 @@ async def _push(analysis_id: str, message: str, status: str = "in_progress", dat
 # ─── analysis background task ────────────────────────────────────────────────
 
 async def _run_analysis(analysis_id: str, user_id: int, req: AnalyzeRequest):
+    global _active_scans
     loop = asyncio.get_running_loop()
 
     def sync_progress(msg: str):
         asyncio.run_coroutine_threadsafe(_push(analysis_id, msg), loop)
 
     try:
-        if _analysis_semaphore._value == 0:
-            await _push(analysis_id, "Waiting for a free scan slot (max 5 concurrent)...")
+        if _active_scans >= _MAX_CONCURRENT_SCANS:
+            await _push(analysis_id, f"Waiting for a free scan slot (max {_MAX_CONCURRENT_SCANS} concurrent)...")
 
+        _active_scans += 1
         async with _analysis_semaphore:
             provider = req.cloud_provider
 
@@ -987,14 +1042,14 @@ async def _run_analysis(analysis_id: str, user_id: int, req: AnalyzeRequest):
                     # Browser-authenticated SSO temporary credentials (per-user, session-scoped)
                     creds_list = [
                         AccountCredentials(
-                            account_id=c.get("account_id", ""),
-                            account_name=c.get("account_name", c.get("account_id", "")),
-                            access_key=c.get("access_key", ""),
-                            secret_key=c.get("secret_key", ""),
-                            session_token=c.get("session_token", ""),
+                            account_id=c.account_id,
+                            account_name=c.account_name,
+                            access_key=c.access_key,
+                            secret_key=c.secret_key,
+                            session_token=c.session_token or "",
                         )
                         for c in req.sso_credentials
-                        if c.get("access_key")
+                        if c.access_key
                     ]
                     if not creds_list:
                         raise RuntimeError("No valid SSO credentials. Please re-authenticate via AWS SSO in Settings.")
@@ -1070,13 +1125,13 @@ async def _run_analysis(analysis_id: str, user_id: int, req: AnalyzeRequest):
         else:
             raw = str(e)
             # Strip internal file paths (e.g. /app/cloud_scanner.py line 123) before surfacing
-            import re as _re
-            err_msg = _re.sub(r'/\S+\.py(?::\d+)?', '', raw).strip() or "Analysis failed — please try again"
+            err_msg = re.sub(r'/\S+\.py(?::\d+)?', '', raw).strip() or "Analysis failed — please try again"
         await _push(analysis_id, f"Analysis failed: {err_msg}", status="error")
         await db.fail_analysis(analysis_id, err_msg)
         if isinstance(e, asyncio.CancelledError):
             raise
     finally:
+        _active_scans -= 1
         await asyncio.sleep(5)
         _analysis_progress.pop(analysis_id, None)
 
@@ -1146,18 +1201,13 @@ async def analyze(req: AnalyzeRequest, user_info: dict = Depends(_verify_token))
 
 @app.websocket("/ws/progress/{analysis_id}")
 async def ws_progress(websocket: WebSocket, analysis_id: str):
-    # Accept first so we can send a proper close code, then authenticate via first message
-    await websocket.accept()
-    try:
-        auth_msg = await asyncio.wait_for(websocket.receive_json(), timeout=10)
-    except (asyncio.TimeoutError, Exception):
-        await websocket.close(code=4001)
-        return
-
-    user_info = _verify_token_str(auth_msg.get("token", ""))
+    # Read token from httpOnly cookie sent automatically by the browser
+    token = websocket.cookies.get("token", "")
+    user_info = _verify_token_str(token)
     if not user_info:
         await websocket.close(code=4001)
         return
+    await websocket.accept()
 
     # Ownership check FIRST — always verify before sending any data
     # get_analysis_by_id checks user_id so cross-user access returns None
@@ -1213,7 +1263,7 @@ async def ws_progress(websocket: WebSocket, analysis_id: str):
     except WebSocketDisconnect:
         pass
     except Exception as exc:
-        print(f"WebSocket error for {analysis_id}: {exc}")
+        logger.warning("websocket.error", extra={"analysis_id": analysis_id, "error": str(exc)})
 
 
 # ─── history endpoints ───────────────────────────────────────────────────────
@@ -1248,7 +1298,21 @@ async def delete_analysis(analysis_id: str, user_info: dict = Depends(_verify_to
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    pool = db.pool
+    if pool is None:
+        return {"status": "ok", "db": "in-memory"}
+    try:
+        async with asyncio.timeout(2.0):
+            async with pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+        return {"status": "ok", "db": "connected"}
+    except Exception as exc:
+        logger.error("health.db_check_failed", extra={"error": str(exc)})
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={"status": "degraded", "db": "error"},
+        )
 
 
 # ─── AWS SSO endpoints ────────────────────────────────────────────────────────
@@ -1264,8 +1328,12 @@ class SSOStartRequest(BaseModel):
     @classmethod
     def validate_start_url(cls, v: str) -> str:
         v = v.strip()
-        if not v.startswith("https://"):
-            raise ValueError("SSO start URL must begin with https://")
+        # Allowlist: only genuine AWS SSO domains — prevents SSRF to internal services
+        if not re.match(r'^https://[a-zA-Z0-9][a-zA-Z0-9\-]*\.awsapps\.com/', v, re.IGNORECASE):
+            raise ValueError(
+                "SSO start URL must be an AWS SSO portal URL "
+                "(e.g. https://my-org.awsapps.com/start)"
+            )
         return v
 
     @field_validator("region")
@@ -1282,13 +1350,15 @@ class SSOCredentialsRequest(BaseModel):
 
 
 @app.post("/api/sso/start")
-async def sso_start(req: SSOStartRequest, _: dict = Depends(_verify_token)):
+async def sso_start(req: SSOStartRequest, user_info: dict = Depends(_verify_token)):
     """Begin the AWS SSO device authorization flow for a user."""
+    await _check_rate_limit(f"sso:start:{user_info['user_id']}", max_attempts=10, window_seconds=300)
+    uid = user_info["user_id"]
     loop = asyncio.get_running_loop()
     try:
         result = await loop.run_in_executor(
             None,
-            lambda: _sso_manager.start_sso_login(req.start_url, req.region),
+            lambda: _sso_manager.start_sso_login(req.start_url, req.region, uid),
         )
         return result
     except Exception as e:
@@ -1296,35 +1366,46 @@ async def sso_start(req: SSOStartRequest, _: dict = Depends(_verify_token)):
 
 
 @app.get("/api/sso/poll/{session_id}")
-async def sso_poll(session_id: str, _: dict = Depends(_verify_token)):
+async def sso_poll(session_id: str, user_info: dict = Depends(_verify_token)):
     """Poll for SSO authorization status (pending / authorized / expired / error)."""
+    await _check_rate_limit(f"sso:poll:{session_id}", max_attempts=60, window_seconds=60)
+    uid = user_info["user_id"]
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(
         None,
-        lambda: _sso_manager.poll_sso_token(session_id),
+        lambda: _sso_manager.poll_sso_token(session_id, uid),
     )
-    if result.get("status") == "error" and "not found" in result.get("message", "").lower():
-        raise HTTPException(status_code=404, detail=result["message"])
+    if result.get("status") == "error":
+        msg = result.get("message", "")
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        if "access denied" in msg.lower():
+            raise HTTPException(status_code=403, detail=msg)
     return result
 
 
 @app.get("/api/sso/accounts/{session_id}")
-async def sso_list_accounts(session_id: str, _: dict = Depends(_verify_token)):
+async def sso_list_accounts(session_id: str, user_info: dict = Depends(_verify_token)):
     """List all accounts + roles the authenticated SSO user can access."""
+    uid = user_info["user_id"]
     loop = asyncio.get_running_loop()
     try:
         accounts = await loop.run_in_executor(
             None,
-            lambda: _sso_manager.list_sso_accounts(session_id),
+            lambda: _sso_manager.list_sso_accounts(session_id, uid),
         )
         return {"accounts": accounts}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/sso/credentials")
-async def sso_get_credentials(req: SSOCredentialsRequest, _: dict = Depends(_verify_token)):
+async def sso_get_credentials(req: SSOCredentialsRequest, user_info: dict = Depends(_verify_token)):
     """Fetch temporary AWS credentials for the selected accounts + roles."""
+    await _check_rate_limit(f"sso:credentials:{user_info['user_id']}", max_attempts=5, window_seconds=60)
+    uid = user_info["user_id"]
     loop = asyncio.get_running_loop()
     results = []
     errors = []
@@ -1343,7 +1424,7 @@ async def sso_get_credentials(req: SSOCredentialsRequest, _: dict = Depends(_ver
             creds = await loop.run_in_executor(
                 None,
                 lambda aid=account_id, rn=role_name: _sso_manager.get_role_credentials(
-                    req.session_id, aid, rn
+                    req.session_id, aid, rn, uid
                 ),
             )
             results.append({

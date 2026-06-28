@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { auth } from '../api'
 import { useAuth } from '../AuthContext'
 import { AlertCircle } from 'lucide-react'
@@ -8,7 +8,8 @@ import LinkedInBadge from '../components/LinkedInBadge'
 export default function Signup() {
   const { login }  = useAuth()
   const navigate   = useNavigate()
-  const [email, setEmail]       = useState('')
+  const [searchParams]          = useSearchParams()
+  const [email, setEmail]       = useState(searchParams.get('email') ?? '')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm]   = useState('')
   const [error, setError]       = useState('')
@@ -21,8 +22,8 @@ export default function Signup() {
     if (password.length < 8)  { setError('Password must be at least 8 characters'); return }
     setLoading(true)
     try {
-      const { token, user } = await auth.signup(email, password)
-      login(token, user)
+      const { user } = await auth.signup(email, password)
+      login(user)
       navigate('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed')

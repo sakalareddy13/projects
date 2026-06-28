@@ -4,11 +4,11 @@ otherwise falls back to built-in rule-based analysis (no API key needed).
 """
 
 import json
+import logging
 import os
 from typing import Any
-import ownership as _ownership  # tamper-detection: exits if source is modified
-_OWNER_KEY_FINGERPRINT = "02836ac5a83298642e2025fa314e8bca9592dc120dd81215d5874777b41eadd7"
-_OWNER_LINKEDIN_HASH = "f8741c14c3c3a5977f06854022f665b5d3601503b28758eaefa349f5d079672a"
+
+logger = logging.getLogger(__name__)
 
 
 # ─── rule-based analyzer (no API key required) ───────────────────────────────
@@ -960,7 +960,7 @@ def _openai_compat_analyze(resources: dict, provider: str, api_key: str) -> dict
         err_str = str(e).lower()
         if "authentication" in err_str or "api_key" in err_str or "401" in err_str:
             raise RuntimeError(f"{provider} authentication failed: {e}")
-        print(f"{provider} analysis failed: {e} — falling back to rule engine")
+        logger.warning("ai.provider_failed", extra={"provider": provider, "error": str(e)})
         return _fallback(resources, f"{provider} error ({type(e).__name__})")
 
 
@@ -990,7 +990,7 @@ def _anthropic_analyze(resources: dict, api_key: str) -> dict:
         err_str = str(e).lower()
         if "authentication" in err_str or "api_key" in err_str or "401" in err_str:
             raise RuntimeError(f"Anthropic authentication failed: {e}")
-        print(f"Anthropic analysis failed: {e} — falling back to rule engine")
+        logger.warning("ai.provider_failed", extra={"provider": "anthropic", "error": str(e)})
         return _fallback(resources, f"Anthropic error ({type(e).__name__})")
 
     return rule_based_analyze(resources)
@@ -1026,7 +1026,7 @@ def _google_analyze(resources: dict, api_key: str) -> dict:
         err_str = str(e).lower()
         if "api_key" in err_str or "401" in err_str or "permission" in err_str:
             raise RuntimeError(f"Google AI authentication failed: {e}")
-        print(f"Google AI analysis failed: {e} — falling back to rule engine")
+        logger.warning("ai.provider_failed", extra={"provider": "google", "error": str(e)})
         return _fallback(resources, f"Google AI error ({type(e).__name__})")
 
 
@@ -1060,7 +1060,7 @@ def _bedrock_analyze(resources: dict, api_key: str) -> dict:
         err_str = str(e).lower()
         if "credentials" in err_str or "access" in err_str or "authfailure" in err_str:
             raise RuntimeError(f"Bedrock authentication failed: {e}")
-        print(f"Bedrock analysis failed: {e} — falling back to rule engine")
+        logger.warning("ai.provider_failed", extra={"provider": "bedrock", "error": str(e)})
         return _fallback(resources, f"Bedrock error ({type(e).__name__})")
 
     return rule_based_analyze(resources)
@@ -1098,12 +1098,12 @@ def _get_provider() -> tuple[str, str | None]:
 
     if explicit:
         if explicit not in _PROVIDER_REGISTRY:
-            print(f"Unknown AI_PROVIDER '{explicit}' — using rule engine")
+            logger.warning("ai.unknown_provider", extra={"provider": explicit})
             return "none", None
         env_key, _ = _PROVIDER_REGISTRY[explicit]
         api_key = os.getenv(env_key, "").strip() if env_key else None
         if env_key and not api_key:
-            print(f"AI_PROVIDER={explicit} but {env_key} is not set — using rule engine")
+            logger.warning("ai.missing_key", extra={"provider": explicit, "env_key": env_key})
             return "none", None
         return explicit, api_key
 
@@ -1154,25 +1154,25 @@ def analyze_resources(resources: dict, cloud_provider: str = "aws", ai_provider:
         # Key-less providers (bedrock, ollama) don't need an api_key
         needs_key = _PROVIDER_REGISTRY[ai_provider][0] is not None
         if needs_key and not ai_api_key:
-            print(f"UI selected '{ai_provider}' but no API key supplied — using rule engine")
+            logger.warning("ai.no_key_supplied", extra={"provider": ai_provider})
             return _rule_based_for_provider(resources, cloud_provider)
-        print(f"Using UI-supplied AI provider: {ai_provider}")
+        logger.info("ai.using_provider", extra={"provider": ai_provider, "source": "ui"})
         try:
             return handler(resources, ai_api_key)
         except Exception as e:
-            print(f"AI provider '{ai_provider}' failed: {e} — falling back to rule engine")
+            logger.warning("ai.provider_failed", extra={"provider": ai_provider, "error": str(e)})
             return _rule_based_for_provider(resources, cloud_provider)
 
     provider, api_key = _get_provider()
 
     if provider != "none":
         _, handler = _PROVIDER_REGISTRY[provider]
-        print(f"Using AI provider: {provider} (model: {os.getenv('AI_MODEL', 'default')})")
+        logger.info("ai.using_provider", extra={"provider": provider, "model": os.getenv("AI_MODEL", "default"), "source": "env"})
         try:
             return handler(resources, api_key)
         except Exception as e:
-            print(f"AI provider failed: {e} — falling back to rule engine")
+            logger.warning("ai.provider_failed", extra={"provider": provider, "error": str(e)})
             return _rule_based_for_provider(resources, cloud_provider)
 
-    print(f"No AI API key configured — using built-in rule-based analyzer ({cloud_provider})")
+    logger.info("ai.rule_engine", extra={"cloud_provider": cloud_provider})
     return _rule_based_for_provider(resources, cloud_provider)

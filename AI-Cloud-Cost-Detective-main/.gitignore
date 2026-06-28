@@ -5,6 +5,7 @@
 !.env.example
 
 aws_accounts.json
+cloud_accounts.json
 *.json.bak
 
 # Cloud credential files

@@ -26,13 +26,12 @@ export default function Analyze() {
     doneRef.current          = false
     intentionalClose.current = false
 
-    const token  = localStorage.getItem('token') ?? ''
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const wsUrl  = `${scheme}://${window.location.host}/ws/progress/${id}`
     const ws     = new WebSocket(wsUrl)
     wsRef.current = ws
 
-    ws.onopen = () => { ws.send(JSON.stringify({ token })) }
+    ws.onopen = () => { /* cookie is sent automatically with the upgrade request */ }
 
     ws.onmessage = (e) => {
       try {

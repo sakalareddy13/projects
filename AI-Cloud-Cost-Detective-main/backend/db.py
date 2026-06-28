@@ -1,12 +1,12 @@
 import asyncio
 import asyncpg
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Optional
-import ownership as _ownership  # tamper-detection: exits if source is modified
-_OWNER_KEY_FINGERPRINT = "02836ac5a83298642e2025fa314e8bca9592dc120dd81215d5874777b41eadd7"
-_OWNER_LINKEDIN_HASH = "f8741c14c3c3a5977f06854022f665b5d3601503b28758eaefa349f5d079672a"
+
+logger = logging.getLogger(__name__)
 
 pool: Optional[asyncpg.Pool] = None
 
@@ -20,13 +20,19 @@ async def init_pool():
     global pool
     url = os.getenv("DATABASE_URL")
     if not url:
-        print("Warning: DATABASE_URL not set — running in-memory mode (no persistence)")
+        logger.warning("db.no_url", extra={"detail": "DATABASE_URL not set — running in-memory mode (no persistence)"})
         return
     try:
-        pool = await asyncpg.create_pool(url, min_size=2, max_size=10)
-        print("Database connected")
+        pool = await asyncpg.create_pool(
+            url,
+            min_size=2,
+            max_size=10,
+            command_timeout=30,
+            max_inactive_connection_lifetime=300,
+        )
+        logger.info("db.connected")
     except Exception as e:
-        print(f"Warning: Could not connect to database: {e} — running in-memory mode")
+        logger.error("db.connect_failed", extra={"error": str(e), "detail": "running in-memory mode"})
 
 
 async def close_pool():
@@ -83,6 +89,10 @@ async def create_tables():
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS analyses_user_id_idx ON analyses(user_id)
         """)
+        # Index for purge queries (time-range deletes)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS analyses_created_at_idx ON analyses(created_at)
+        """)
         # Token revocation table (for logout / JTI blacklist)
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS revoked_tokens (
@@ -129,7 +139,8 @@ async def purge_old_analyses(days: int = 2) -> int:
     if pool:
         async with pool.acquire() as conn:
             result = await conn.execute(
-                "DELETE FROM analyses WHERE created_at < NOW() - INTERVAL '%s days'" % days
+                "DELETE FROM analyses WHERE created_at < NOW() - ($1 * INTERVAL '1 day')",
+                days,
             )
             # asyncpg returns "DELETE N"
             try:

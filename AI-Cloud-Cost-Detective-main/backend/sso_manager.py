@@ -1,16 +1,29 @@
 """AWS SSO device authorization flow — per-user browser-based authentication."""
 
+import logging
 import time
 import uuid
 
 import boto3
+
+logger = logging.getLogger(__name__)
 
 
 # In-memory sessions — cleared on server restart, never written to disk
 _sso_sessions: dict[str, dict] = {}
 
 
-def start_sso_login(start_url: str, region: str) -> dict:
+def _verify_session_owner(session_id: str, user_id: int) -> dict:
+    """Return session dict if it belongs to user_id; raise RuntimeError otherwise."""
+    session = _sso_sessions.get(session_id)
+    if not session:
+        raise RuntimeError("Session not found. Please start the SSO login again.")
+    if session.get("user_id") != user_id:
+        raise PermissionError("Access denied — this SSO session belongs to another user.")
+    return session
+
+
+def start_sso_login(start_url: str, region: str, user_id: int) -> dict:
     """
     Register a temporary OIDC client and start the device authorization flow.
     Returns session_id + display info (user_code, verification URLs).
@@ -30,6 +43,7 @@ def start_sso_login(start_url: str, region: str) -> dict:
 
     session_id = str(uuid.uuid4())
     _sso_sessions[session_id] = {
+        "user_id": user_id,
         "client_id": client_reg["clientId"],
         "client_secret": client_reg["clientSecret"],
         "device_code": device_auth["deviceCode"],
@@ -51,13 +65,16 @@ def start_sso_login(start_url: str, region: str) -> dict:
     }
 
 
-def poll_sso_token(session_id: str) -> dict:
+def poll_sso_token(session_id: str, user_id: int) -> dict:
     """
     Try to exchange the device code for an SSO access token.
     Returns {"status": "pending"|"authorized"|"expired"|"error", "message": "..."}
     """
-    session = _sso_sessions.get(session_id)
-    if not session:
+    try:
+        session = _verify_session_owner(session_id, user_id)
+    except PermissionError as e:
+        return {"status": "error", "message": str(e)}
+    except RuntimeError:
         return {"status": "error", "message": "Session not found. Please start the SSO login again."}
 
     if session["status"] == "authorized":
@@ -92,16 +109,17 @@ def poll_sso_token(session_id: str) -> dict:
 
     except Exception as e:
         session["status"] = "error"
+        logger.error("sso.poll.error", extra={"session_id": session_id, "error": str(e)})
         return {"status": "error", "message": f"Authorization failed: {e}"}
 
 
-def list_sso_accounts(session_id: str) -> list[dict]:
+def list_sso_accounts(session_id: str, user_id: int) -> list[dict]:
     """
     List all AWS accounts and their available roles for the authenticated SSO user.
     Raises RuntimeError if the session is not yet authorized.
     """
-    session = _sso_sessions.get(session_id)
-    if not session or session["status"] != "authorized":
+    session = _verify_session_owner(session_id, user_id)
+    if session["status"] != "authorized":
         raise RuntimeError("SSO session not authorized. Please log in first.")
 
     sso = boto3.client("sso", region_name=session["region"])
@@ -136,13 +154,13 @@ def list_sso_accounts(session_id: str) -> list[dict]:
     return accounts
 
 
-def get_role_credentials(session_id: str, account_id: str, role_name: str) -> dict:
+def get_role_credentials(session_id: str, account_id: str, role_name: str, user_id: int) -> dict:
     """
     Get temporary AWS credentials (access_key, secret_key, session_token)
     for a specific account + role using the SSO access token.
     """
-    session = _sso_sessions.get(session_id)
-    if not session or session["status"] != "authorized":
+    session = _verify_session_owner(session_id, user_id)
+    if session["status"] != "authorized":
         raise RuntimeError("SSO session not authorized.")
 
     sso = boto3.client("sso", region_name=session["region"])

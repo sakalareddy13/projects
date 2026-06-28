@@ -1,9 +1,12 @@
 import boto3
 import configparser
 import json
+import logging
 import os
 from dataclasses import dataclass
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # ─── base session ─────────────────────────────────────────────────────────────
@@ -99,7 +102,7 @@ def assume_role(account_id: str, account_name: str, role_name: str = "CostDetect
             session_token=c["SessionToken"],
         )
     except Exception as e:
-        print(f"Warning: Could not assume role in account {account_id} ({role_arn}): {e}")
+        logger.warning("iam.assume_role.failed", extra={"account_id": account_id, "role_arn": role_arn, "error": str(e)})
         return None
 
 
@@ -148,7 +151,7 @@ def load_accounts_from_file(filepath: str = None) -> list[dict]:
             data = json.load(f)
         return data.get("accounts", [])
     except Exception as e:
-        print(f"Warning: Could not load cloud_accounts.json: {e}")
+        logger.warning("accounts_file.load_failed", extra={"filepath": filepath, "error": str(e)})
         return []
 
 
@@ -169,7 +172,7 @@ def get_org_accounts() -> list[dict]:
                     })
         return accounts
     except Exception as e:
-        print(f"Warning: Could not list org accounts: {e}")
+        logger.warning("organizations.list_accounts.failed", extra={"error": str(e)})
         return []
 
 
@@ -237,6 +240,6 @@ def resolve_scan_credentials(account_ids: list[str] = None, use_organizations: b
             if creds:
                 results.append(creds)
             else:
-                print(f"Warning: Could not access {acct_id} — no SSO profile found and role assumption failed.")
+                logger.warning("account.not_accessible", extra={"account_id": acct_id, "reason": "no SSO profile and role assumption failed"})
 
     return results

@@ -6,25 +6,20 @@ const BASE = '/api'
 const _cachedServices: Partial<Record<CloudProvider, { id: string; name: string; description: string }[]>> = {}
 const _cachedRegions: Partial<Record<CloudProvider, string[]>> = {}
 
-function headers(): HeadersInit {
-  const token = localStorage.getItem('token')
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-}
-
-async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
+async function req<T>(path: string, opts: RequestInit & { skipRedirectOn401?: boolean } = {}): Promise<T> {
+  const { skipRedirectOn401, ...fetchOpts } = opts
   let res: Response
   try {
-    res = await fetch(`${BASE}${path}`, { ...opts, headers: headers() })
+    res = await fetch(`${BASE}${path}`, {
+      ...fetchOpts,
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...(fetchOpts.headers ?? {}) },
+    })
   } catch {
     throw new Error('Cannot reach the server. Make sure the backend is running and try again.')
   }
   if (res.status === 401 || res.status === 403) {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    window.location.href = '/login'
+    if (!skipRedirectOn401) window.location.href = '/login'
     throw new Error('Session expired — please log in again.')
   }
   if (!res.ok) {
@@ -42,19 +37,22 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 export const auth = {
   signup: (email: string, password: string) =>
-    req<{ token: string; user: { id: number; email: string } }>('/auth/signup', {
+    req<{ user: { id: number; email: string } }>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
 
   login: (email: string, password: string) =>
-    req<{ token: string; user: { id: number; email: string } }>('/auth/login', {
+    req<{ user: { id: number; email: string } }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
 
   logout: () =>
     req<{ status: string }>('/auth/logout', { method: 'POST' }),
+
+  me: () =>
+    req<{ id: number; email: string }>('/auth/me', { skipRedirectOn401: true }),
 
   changePassword: (current_password: string, new_password: string) =>
     req<{ message: string }>('/auth/change-password', {

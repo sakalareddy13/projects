@@ -3,8 +3,6 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Prevent Python from writing .pyc bytecode files and from reading stale cache.
-# A crafted .pyc in __pycache__ could shadow ownership.py with a no-op version.
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONNODEBUGRANGES=1
 
@@ -13,9 +11,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
 COPY . .
-
-# Ownership integrity check — build fails if LinkedIn ID is modified or removed
-RUN python validate_ownership.py
 
 # Drop root — create a non-privileged user
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \

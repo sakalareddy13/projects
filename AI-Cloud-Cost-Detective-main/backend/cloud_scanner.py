@@ -5,10 +5,13 @@ AI/ML, messaging, security, developer tools, management, media, and more.
 """
 
 import datetime
+import logging
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 from botocore.exceptions import ClientError, NoCredentialsError
 
@@ -133,7 +136,7 @@ def scan_ec2(creds: AccountCredentials, region: str) -> list:
                 })
 
     except (ClientError, NoCredentialsError) as e:
-        print(f"EC2 scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"EC2 scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -153,7 +156,7 @@ def scan_elb(creds: AccountCredentials, region: str) -> list:
                     "created_time": _dt(lb.get("CreatedTime")),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"ELBv2 scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"ELBv2 scan error in {region} ({creds.account_id}): ", "error": str(e)})
     try:
         # Classic LB
         elb = creds.get_client("elb", region)
@@ -168,7 +171,7 @@ def scan_elb(creds: AccountCredentials, region: str) -> list:
                     "created_time": _dt(lb.get("CreatedTime")),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"ELB classic scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"ELB classic scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -188,7 +191,7 @@ def scan_autoscaling(creds: AccountCredentials, region: str) -> list:
                     "tags": {t["Key"]: t["Value"] for t in group.get("Tags", [])},
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"ASG scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"ASG scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -228,7 +231,7 @@ def scan_ecs(creds: AccountCredentials, region: str) -> list:
                                 "task_definition": svc.get("taskDefinition", "").split("/")[-1],
                             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"ECS scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"ECS scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -250,7 +253,7 @@ def scan_eks(creds: AccountCredentials, region: str) -> list:
                 except ClientError:
                     pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"EKS scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"EKS scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -276,7 +279,7 @@ def scan_ecr(creds: AccountCredentials, region: str) -> list:
                     "created_at": _dt(repo.get("createdAt")),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"ECR scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"ECR scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -293,7 +296,7 @@ def scan_app_runner(creds: AccountCredentials, region: str) -> list:
                     "created_at": _dt(svc.get("CreatedAt")),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"AppRunner scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"AppRunner scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -313,7 +316,7 @@ def scan_elastic_beanstalk(creds: AccountCredentials, region: str) -> list:
                     "cname": env.get("CNAME", ""),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"ElasticBeanstalk scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"ElasticBeanstalk scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -333,7 +336,7 @@ def scan_batch(creds: AccountCredentials, region: str) -> list:
                     "max_vcpus": ce.get("computeResources", {}).get("maxvCpus", 0),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Batch scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Batch scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -352,7 +355,7 @@ def scan_lightsail(creds: AccountCredentials, region: str) -> list:
                     "created_at": _dt(inst.get("createdAt")),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Lightsail scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Lightsail scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -392,7 +395,7 @@ def scan_s3(creds: AccountCredentials, target_regions: list) -> list:
                 "versioning": versioning,
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"S3 scan error ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"S3 scan error ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -414,7 +417,7 @@ def scan_efs(creds: AccountCredentials, region: str) -> list:
                     "tags": {t["Key"]: t["Value"] for t in fs.get("Tags", [])},
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"EFS scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"EFS scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -434,7 +437,7 @@ def scan_fsx(creds: AccountCredentials, region: str) -> list:
                     "tags": _tags(fs),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"FSx scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"FSx scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -456,7 +459,7 @@ def scan_backup(creds: AccountCredentials, region: str) -> list:
                 "creation_date": _dt(vault.get("CreationDate")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Backup scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Backup scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -503,7 +506,7 @@ def scan_rds(creds: AccountCredentials, region: str) -> list:
                     "require_tls": proxy.get("RequireTLS", False),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"RDS scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"RDS scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -524,7 +527,7 @@ def scan_elasticache(creds: AccountCredentials, region: str) -> list:
                     "auto_minor_version_upgrade": cluster.get("AutoMinorVersionUpgrade", False),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"ElastiCache scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"ElastiCache scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -552,7 +555,7 @@ def scan_dynamodb(creds: AccountCredentials, region: str) -> list:
                 except ClientError:
                     pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"DynamoDB scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"DynamoDB scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -570,7 +573,7 @@ def scan_dax(creds: AccountCredentials, region: str) -> list:
                     "status": cluster.get("Status", ""),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"DAX scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"DAX scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -592,7 +595,7 @@ def scan_redshift(creds: AccountCredentials, region: str) -> list:
                     "publicly_accessible": cluster.get("PubliclyAccessible", False),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Redshift scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Redshift scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -614,7 +617,7 @@ def scan_documentdb(creds: AccountCredentials, region: str) -> list:
                     "backup_retention": cluster.get("BackupRetentionPeriod", 0),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"DocumentDB scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"DocumentDB scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -636,7 +639,7 @@ def scan_neptune(creds: AccountCredentials, region: str) -> list:
                     "iam_auth_enabled": cluster.get("IAMDatabaseAuthenticationEnabled", False),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Neptune scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Neptune scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -658,7 +661,7 @@ def scan_timestream(creds: AccountCredentials, region: str) -> list:
                 "creation_time": _dt(db.get("CreationTime")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Timestream scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Timestream scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -674,7 +677,7 @@ def scan_qldb(creds: AccountCredentials, region: str) -> list:
                 "creation_date_time": _dt(ledger.get("CreationDateTime")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"QLDB scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"QLDB scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -689,7 +692,7 @@ def scan_keyspaces(creds: AccountCredentials, region: str) -> list:
                 "replication_strategy": keyspace.get("replicationStrategy", ""),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Keyspaces scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Keyspaces scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -708,7 +711,7 @@ def scan_memorydb(creds: AccountCredentials, region: str) -> list:
                 "tls_enabled": cluster.get("TLSEnabled", False),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"MemoryDB scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"MemoryDB scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -728,7 +731,7 @@ def scan_dms(creds: AccountCredentials, region: str) -> list:
                     "publicly_accessible": ri.get("PubliclyAccessible", False),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"DMS scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"DMS scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -752,7 +755,7 @@ def scan_cloudfront(creds: AccountCredentials, target_regions: list) -> list:
                     "is_ipv6_enabled": dist.get("IsIPV6Enabled", False),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"CloudFront scan error ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"CloudFront scan error ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -771,7 +774,7 @@ def scan_apigateway(creds: AccountCredentials, region: str) -> list:
                 "disable_execute_api_endpoint": api.get("disableExecuteApiEndpoint", False),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"APIGateway REST scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"APIGateway REST scan error in {region} ({creds.account_id}): ", "error": str(e)})
     try:
         # HTTP / WebSocket APIs (v2)
         apigw2 = creds.get_client("apigatewayv2", region)
@@ -785,7 +788,7 @@ def scan_apigateway(creds: AccountCredentials, region: str) -> list:
                 "disable_execute_api_endpoint": api.get("DisableExecuteApiEndpoint", False),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"APIGateway HTTP scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"APIGateway HTTP scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -813,7 +816,7 @@ def scan_transit_gateway(creds: AccountCredentials, region: str) -> list:
                     "tags": _tags(att),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"TransitGateway scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"TransitGateway scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -832,7 +835,7 @@ def scan_vpc_endpoints(creds: AccountCredentials, region: str) -> list:
                     "tags": _tags(ep),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"VPC Endpoints scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"VPC Endpoints scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -850,7 +853,7 @@ def scan_global_accelerator(creds: AccountCredentials, target_regions: list) -> 
                 "created_time": _dt(acc.get("CreatedTime")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"GlobalAccelerator scan error ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"GlobalAccelerator scan error ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -867,7 +870,7 @@ def scan_direct_connect(creds: AccountCredentials, region: str) -> list:
                 "partner_name": conn.get("partnerName", ""),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"DirectConnect scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"DirectConnect scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -882,7 +885,7 @@ def scan_network_firewall(creds: AccountCredentials, region: str) -> list:
                 "vpc_id": fw.get("VpcId", ""),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"NetworkFirewall scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"NetworkFirewall scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -899,7 +902,7 @@ def scan_route53(creds: AccountCredentials, target_regions: list) -> list:
                 "comment": zone.get("Config", {}).get("Comment", ""),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Route53 scan error ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Route53 scan error ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -917,7 +920,7 @@ def scan_transfer_family(creds: AccountCredentials, region: str) -> list:
                 "user_count": srv.get("UserCount", 0),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"TransferFamily scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"TransferFamily scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -934,7 +937,7 @@ def scan_waf(creds: AccountCredentials, region: str) -> list:
                     "managed_by_firewall_manager": acl.get("ManagedByFirewallManager", False),
                 })
         except (ClientError, NoCredentialsError) as e:
-            print(f"WAF scan error in {region}/{scope} ({creds.account_id}): {e}")
+            logger.warning("scanner.error", extra={"detail": f"WAF scan error in {region}/{scope} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -958,7 +961,7 @@ def scan_lambda(creds: AccountCredentials, region: str) -> list:
                     "description": func.get("Description", ""),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Lambda scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Lambda scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -985,7 +988,7 @@ def scan_kinesis(creds: AccountCredentials, region: str) -> list:
             except ClientError:
                 pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"Kinesis Streams scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Kinesis Streams scan error in {region} ({creds.account_id}): ", "error": str(e)})
     try:
         # Kinesis Firehose
         fh = creds.get_client("firehose", region)
@@ -1002,7 +1005,7 @@ def scan_kinesis(creds: AccountCredentials, region: str) -> list:
             except ClientError:
                 pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"Kinesis Firehose scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Kinesis Firehose scan error in {region} ({creds.account_id}): ", "error": str(e)})
     try:
         # Kinesis Video Streams
         kvs = creds.get_client("kinesisvideo", region)
@@ -1016,7 +1019,7 @@ def scan_kinesis(creds: AccountCredentials, region: str) -> list:
                 "creation_time": _dt(stream.get("CreationTime")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Kinesis Video scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Kinesis Video scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1036,7 +1039,7 @@ def scan_msk(creds: AccountCredentials, region: str) -> list:
                     "broker_storage_gb": broker_info.get("StorageInfo", {}).get("EbsStorageInfo", {}).get("VolumeSize", 0),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"MSK scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"MSK scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1054,7 +1057,7 @@ def scan_emr(creds: AccountCredentials, region: str) -> list:
                     "normalized_instance_hours": cluster.get("NormalizedInstanceHours", 0),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"EMR scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"EMR scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1079,7 +1082,7 @@ def scan_athena(creds: AccountCredentials, region: str) -> list:
                 except ClientError:
                     pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"Athena scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Athena scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1108,7 +1111,7 @@ def scan_glue(creds: AccountCredentials, region: str) -> list:
                     "last_crawl_status": crawler.get("LastCrawl", {}).get("Status", ""),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Glue scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Glue scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1132,7 +1135,7 @@ def scan_opensearch(creds: AccountCredentials, region: str) -> list:
                         "processing": domain.get("Processing", False),
                     })
     except (ClientError, NoCredentialsError) as e:
-        print(f"OpenSearch scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"OpenSearch scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1152,7 +1155,7 @@ def scan_quicksight(creds: AccountCredentials, target_regions: list) -> list:
                     "identity_type": user.get("IdentityType", ""),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"QuickSight scan error ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"QuickSight scan error ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1189,7 +1192,7 @@ def scan_sagemaker(creds: AccountCredentials, region: str) -> list:
                     "creation_time": _dt(job.get("CreationTime")),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"SageMaker scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"SageMaker scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1208,7 +1211,7 @@ def scan_bedrock(creds: AccountCredentials, region: str) -> list:
                 "creation_time": _dt(model.get("creationTime")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Bedrock scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Bedrock scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1225,7 +1228,7 @@ def scan_rekognition(creds: AccountCredentials, region: str) -> list:
                 "datasets": len(project.get("Datasets", [])),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Rekognition scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Rekognition scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1244,7 +1247,7 @@ def scan_comprehend(creds: AccountCredentials, region: str) -> list:
                 "creation_time": _dt(ep.get("CreationTime")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Comprehend scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Comprehend scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1261,7 +1264,7 @@ def scan_lex(creds: AccountCredentials, region: str) -> list:
                 "description": bot.get("description", ""),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Lex scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Lex scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1295,7 +1298,7 @@ def scan_sqs(creds: AccountCredentials, region: str) -> list:
                 except ClientError:
                     pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"SQS scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"SQS scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1319,7 +1322,7 @@ def scan_sns(creds: AccountCredentials, region: str) -> list:
                 except ClientError:
                     pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"SNS scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"SNS scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1340,7 +1343,7 @@ def scan_eventbridge(creds: AccountCredentials, region: str) -> list:
                     "rule_count": rule_count,
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"EventBridge scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"EventBridge scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1356,7 +1359,7 @@ def scan_step_functions(creds: AccountCredentials, region: str) -> list:
                     "creation_date": _dt(sm.get("creationDate")),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Step Functions scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Step Functions scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1375,7 +1378,7 @@ def scan_mq(creds: AccountCredentials, region: str) -> list:
                 "creation_time": _dt(broker.get("Created")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"MQ scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"MQ scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1392,7 +1395,7 @@ def scan_appsync(creds: AccountCredentials, region: str) -> list:
                 "created_at": _dt(api.get("createdDate")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"AppSync scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"AppSync scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1427,7 +1430,7 @@ def scan_kms(creds: AccountCredentials, region: str) -> list:
                 except ClientError:
                     pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"KMS scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"KMS scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1447,7 +1450,7 @@ def scan_secretsmanager(creds: AccountCredentials, region: str) -> list:
                     "tags": {t["Key"]: t["Value"] for t in secret.get("Tags", [])},
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Secrets Manager scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Secrets Manager scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1467,7 +1470,7 @@ def scan_ssm(creds: AccountCredentials, region: str) -> list:
                     "data_type": param.get("DataType", ""),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"SSM scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"SSM scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1485,7 +1488,7 @@ def scan_acm_pca(creds: AccountCredentials, region: str) -> list:
                 "created_at": _dt(ca.get("CreatedAt")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"ACM PCA scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"ACM PCA scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1506,7 +1509,7 @@ def scan_guardduty(creds: AccountCredentials, region: str) -> list:
             except ClientError:
                 pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"GuardDuty scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"GuardDuty scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1523,7 +1526,7 @@ def scan_macie(creds: AccountCredentials, region: str) -> list:
                 "created_at": _dt(job.get("createdAt")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Macie scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Macie scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1542,7 +1545,7 @@ def scan_inspector(creds: AccountCredentials, region: str) -> list:
             "lambda_scan_enabled": lambda_cfg.get("scanMode", "") != "DISABLED",
         })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Inspector scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Inspector scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1557,7 +1560,7 @@ def scan_security_hub(creds: AccountCredentials, region: str) -> list:
             "subscribed_at": _dt(hub.get("SubscribedAt")),
         })
     except (ClientError, NoCredentialsError) as e:
-        print(f"SecurityHub scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"SecurityHub scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1574,7 +1577,7 @@ def scan_firewall_manager(creds: AccountCredentials, target_regions: list) -> li
                 "remediation_enabled": policy.get("RemediationEnabled", False),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"FirewallManager scan error ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"FirewallManager scan error ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1592,9 +1595,9 @@ def scan_shield(creds: AccountCredentials, target_regions: list) -> list:
         })
     except ClientError as e:
         if "subscription does not exist" not in str(e).lower():
-            print(f"Shield scan error ({creds.account_id}): {e}")
+            logger.warning("scanner.error", extra={"detail": f"Shield scan error ({creds.account_id}): ", "error": str(e)})
     except NoCredentialsError as e:
-        print(f"Shield scan error ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Shield scan error ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1613,7 +1616,7 @@ def scan_license_manager(creds: AccountCredentials, region: str) -> list:
                 "status": config.get("Status", ""),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"LicenseManager scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"LicenseManager scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1641,7 +1644,7 @@ def scan_codebuild(creds: AccountCredentials, region: str) -> list:
                     "created": _dt(project.get("created")),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"CodeBuild scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"CodeBuild scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1657,7 +1660,7 @@ def scan_codepipeline(creds: AccountCredentials, region: str) -> list:
                 "updated": _dt(pipeline.get("updated")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"CodePipeline scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"CodePipeline scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1674,7 +1677,7 @@ def scan_codeartifact(creds: AccountCredentials, region: str) -> list:
                     "description": repo.get("description", ""),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"CodeArtifact scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"CodeArtifact scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1694,7 +1697,7 @@ def scan_cloudwatch_logs(creds: AccountCredentials, region: str) -> list:
                     "stored_bytes": group.get("storedBytes", 0),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"CloudWatch Logs scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"CloudWatch Logs scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1713,7 +1716,7 @@ def scan_cloudwatch_synthetics(creds: AccountCredentials, region: str) -> list:
                 "failure_retention_days": canary.get("FailureRetentionPeriodInDays", 31),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"CloudWatch Synthetics scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"CloudWatch Synthetics scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1731,7 +1734,7 @@ def scan_cloudtrail(creds: AccountCredentials, region: str) -> list:
                 "s3_bucket": trail.get("S3BucketName", ""),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"CloudTrail scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"CloudTrail scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1754,7 +1757,7 @@ def scan_config_service(creds: AccountCredentials, region: str) -> list:
                 "include_global_resource_types": recorder.get("recordingGroup", {}).get("includeGlobalResourceTypes", False),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Config scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Config scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1772,7 +1775,7 @@ def scan_xray(creds: AccountCredentials, region: str) -> list:
                 "insights_enabled": group.get("InsightsConfiguration", {}).get("InsightsEnabled", False),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"X-Ray scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"X-Ray scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1795,7 +1798,7 @@ def scan_connect(creds: AccountCredentials, region: str) -> list:
                 "created_time": _dt(inst.get("CreatedTime")),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Connect scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Connect scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1817,7 +1820,7 @@ def scan_ses(creds: AccountCredentials, region: str) -> list:
                 except ClientError:
                     pass
     except (ClientError, NoCredentialsError) as e:
-        print(f"SES scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"SES scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1836,7 +1839,7 @@ def scan_workspaces(creds: AccountCredentials, region: str) -> list:
                     "compute_type": workspace.get("WorkspaceProperties", {}).get("ComputeTypeName", ""),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"WorkSpaces scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"WorkSpaces scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1851,7 +1854,7 @@ def scan_pinpoint(creds: AccountCredentials, region: str) -> list:
                 "creation_date": app.get("CreationDate", ""),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"Pinpoint scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"Pinpoint scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1879,7 +1882,7 @@ def scan_mediaconvert(creds: AccountCredentials, region: str) -> list:
                     "submitted_jobs_count": queue.get("SubmittedJobsCount", 0),
                 })
     except (ClientError, NoCredentialsError) as e:
-        print(f"MediaConvert scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"MediaConvert scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1896,7 +1899,7 @@ def scan_medialive(creds: AccountCredentials, region: str) -> list:
                 "input_attachments_count": len(channel.get("InputAttachments", [])),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"MediaLive scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"MediaLive scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -1914,7 +1917,7 @@ def scan_ivs(creds: AccountCredentials, region: str) -> list:
                 "recording_configuration_arn": channel.get("recordingConfigurationArn", ""),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"IVS scan error in {region} ({creds.account_id}): {e}")
+        logger.warning("scanner.error", extra={"detail": f"IVS scan error in {region} ({creds.account_id}): ", "error": str(e)})
     return resources
 
 
@@ -2082,7 +2085,7 @@ def scan_resources(
         try:
             return bucket_key, scanner_fn(creds, call_arg)
         except Exception as e:
-            print(f"Scan error [{label}]: {e}")
+            logger.warning("scanner.error", extra={"detail": f"Scan error [{label}]: ", "error": str(e)})
             return bucket_key, []
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:

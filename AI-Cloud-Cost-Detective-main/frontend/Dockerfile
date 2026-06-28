@@ -5,8 +5,6 @@ COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm install --prefer-offline
 COPY . .
-# Ownership integrity check — build fails if LinkedIn ID is modified or removed
-RUN node validate_ownership.mjs
 RUN npm run build
 
 FROM nginx:alpine

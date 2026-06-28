@@ -10,19 +10,26 @@ export default function Login() {
   const navigate    = useNavigate()
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
+  const [error, setError]         = useState('')
+  const [userNotFound, setUserNotFound] = useState(false)
+  const [loading, setLoading]     = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setUserNotFound(false)
     setLoading(true)
     try {
-      const { token, user } = await auth.login(email, password)
-      login(token, user)
+      const { user } = await auth.login(email, password)
+      login(user)
       navigate('/')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      const msg = err instanceof Error ? err.message : 'Login failed'
+      if (msg.toLowerCase().includes('no account found')) {
+        setUserNotFound(true)
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false)
     }
@@ -118,6 +125,33 @@ export default function Login() {
           }}>Sign in to your account</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {userNotFound && (
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: '6px',
+                background: 'rgba(255,237,213,0.95)',
+                border: '1px solid rgba(251,146,60,0.6)',
+                borderRadius: '10px',
+                padding: '12px 14px',
+                color: '#92400e',
+                fontSize: '0.85rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                  No account found for <strong>{email}</strong>
+                </div>
+                <div>
+                  Would you like to{' '}
+                  <Link
+                    to={`/signup?email=${encodeURIComponent(email)}`}
+                    style={{ color: '#c2410c', fontWeight: 700, textDecoration: 'underline' }}
+                  >
+                    create an account
+                  </Link>
+                  ?
+                </div>
+              </div>
+            )}
+
             {error && (
               <div style={{
                 display: 'flex', alignItems: 'flex-start', gap: '8px',

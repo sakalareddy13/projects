@@ -11,10 +11,12 @@ services:
         required: false       # file is gitignored; app works without it (AI keys are optional)
     environment:
       HOME: /home/appuser
-      DATABASE_URL: postgresql://costdetective:costdetective@postgres:5432/costdetective
+      # Build DATABASE_URL from individual secrets — never hard-code passwords here
+      DATABASE_URL: postgresql://${POSTGRES_USER:-costdetective}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-costdetective}
       AWS_ORGANIZATIONS_ENABLED: "false"
       AWS_ACCOUNTS_FILE: cloud_accounts.json
-      ALLOWED_ORIGINS: "*"
+      # Restrict CORS to known origins. Use ALLOWED_ORIGINS=* only for local dev — never production.
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}"
     volumes:
       - ./cloud_accounts.json:/app/cloud_accounts.json
       - backend_data:/app/data
@@ -59,7 +61,7 @@ services:
         max-file: "3"
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2024.11.0
     container_name: cost-detective-tunnel
     command: tunnel --url http://frontend:80
     depends_on:
@@ -76,7 +78,9 @@ services:
     container_name: cost-detective-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-costdetective}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-costdetective}
+      # POSTGRES_PASSWORD has no default — must be set explicitly (e.g., in a .env file).
+      # Generate one: python3 -c "import secrets; print(secrets.token_hex(24))"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — see .env.example}
       POSTGRES_DB: ${POSTGRES_DB:-costdetective}
     ports:
       - "127.0.0.1:5432:5432"

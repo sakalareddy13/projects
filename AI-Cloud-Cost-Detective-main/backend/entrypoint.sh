@@ -17,4 +17,17 @@ if [ -z "$JWT_SECRET" ]; then
     export JWT_SECRET
 fi
 
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+# IMPORTANT: must be 1 until shared state (rate buckets, SSO sessions, analysis
+# progress) is externalized to Redis. Multiple workers split in-memory state
+# silently — rate limits become ineffective and WebSocket progress fails.
+WORKERS=${UVICORN_WORKERS:-1}
+LOG_LEVEL=${LOG_LEVEL:-info}
+
+exec uvicorn main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers "$WORKERS" \
+    --log-level "$LOG_LEVEL" \
+    --access-log \
+    --proxy-headers \
+    --forwarded-allow-ips="172.18.0.0/16"
