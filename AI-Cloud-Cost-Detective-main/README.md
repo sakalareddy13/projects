@@ -22,11 +22,13 @@ An AI-powered multi-cloud cost analysis tool. Connect your AWS, Azure, or GCP ac
 |---|---|
 | Frontend | React 18 + TypeScript + Vite + Tailwind CSS |
 | Backend | Python 3.11 + FastAPI |
-| Auth | JWT (bcrypt + PyJWT) with JTI-based token revocation |
+| Auth | JWT (bcrypt + PyJWT) via httpOnly cookies with JTI-based token revocation |
 | Cloud SDKs | boto3 (AWS), azure-mgmt (Azure), google-api-python-client (GCP) |
 | AI Analysis | Claude · GPT-4o · Gemini · Groq · DeepSeek · xAI · Mistral · Cohere · Together · Perplexity · Azure OpenAI · AWS Bedrock · Ollama · Built-in rule engine |
-| Database | PostgreSQL 15 |
+| Database | PostgreSQL 15 (asyncpg) |
 | Live Updates | FastAPI WebSocket |
+| Logging | Structured JSON via python-json-logger with request-id correlation |
+| Tests | pytest + pytest-asyncio + httpx (backend) · vitest + jsdom (frontend) |
 | Deployment | Docker + Docker Compose |
 
 ---
@@ -49,18 +51,31 @@ You do **not** need Python, Node.js, or any cloud CLI installed locally — ever
 
 ```bash
 git clone <repo-url>
-cd AI-Cloud-Cost-Detective
+cd AI-Cloud-Cost-Detective-main
 ```
 
-### 2. Build and start
+### 2. Create a root `.env` file
+
+A root `.env` is required to set the Postgres password:
+
+```bash
+# Generate a secure password
+python3 -c "import secrets; print('POSTGRES_PASSWORD=' + secrets.token_hex(24))" > .env
+```
+
+Or create `.env` manually:
+
+```env
+POSTGRES_PASSWORD=your-secure-password-here
+```
+
+### 3. Build and start
 
 ```bash
 docker compose up --build -d
 ```
 
-That's it. No `.env` editing, no secret generation — everything is handled automatically on first run.
-
-### 3. Open the app
+### 4. Open the app
 
 ```
 http://localhost:3000
@@ -68,32 +83,31 @@ http://localhost:3000
 
 Create an account on the signup page and start scanning.
 
-> **Optional**: To add an AI provider, open `backend/.env`, uncomment one API key line, and restart the backend (`docker compose restart backend`). Without a key the built-in rule engine runs for free.
+> **Optional**: To add an AI provider, copy `backend/.env.example` to `backend/.env`, add your API key, and restart the backend (`docker compose restart backend`). Without a key the built-in rule engine runs for free.
 
 ---
 
 ## Environment Variables
 
-No `.env` files are required for a standard Docker Compose deployment — all defaults are built into the compose file.
-
-### Root `.env` *(optional — production override only)*
-
-A root `.env` is only needed if you want to override the default Postgres credentials. Without it, these defaults are used automatically:
+### Root `.env` *(required — Postgres password)*
 
 | Variable | Default | Description |
 |---|---|---|
+| `POSTGRES_PASSWORD` | **required** | Set a strong random password. Generate: `python3 -c "import secrets; print(secrets.token_hex(24))"` |
 | `POSTGRES_USER` | `costdetective` | Database username |
-| `POSTGRES_PASSWORD` | `costdetective` | Database password — override for production |
 | `POSTGRES_DB` | `costdetective` | Database name |
+| `ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS origins |
 
-### `backend/.env` *(optional — AI keys only)*
+### `backend/.env` *(optional — AI keys and overrides)*
 
-Copy `backend/.env.example` to `backend/.env` only if you want to add an AI provider key. Without this file the built-in rule engine runs automatically.
+Copy `backend/.env.example` to `backend/.env` only if you want to add an AI provider key or override defaults.
 
 | Variable | Default | Description |
 |---|---|---|
 | `JWT_SECRET` | *(auto-generated)* | Generated on first run and persisted in the `backend_data` Docker volume. Do not set manually unless rotating the secret. |
 | `DATABASE_URL` | *(set by docker-compose)* | Pre-configured to connect to the postgres container. Only override if using an external database. |
+| `UVICORN_WORKERS` | `1` | **Must stay at 1** until rate-limit buckets and SSO sessions are externalized to Redis. Multiple workers split in-memory state silently. |
+| `DEBUG` | `false` | Set to `true` to enable Swagger UI at `/docs` and disable cookie `Secure` flag for plain HTTP local dev. |
 
 ---
 
@@ -109,7 +123,7 @@ Enter your Access Key ID and Secret Access Key in the AWS Credentials card on th
 
 **Option 2 — AWS SSO**
 
-Log in via the SSO tab. An in-browser device-authorization flow authenticates you with your AWS identity provider. Temporary credentials are stored in sessionStorage for the current browser tab only.
+Log in via the SSO tab. An in-browser device-authorization flow authenticates you with your AWS identity provider. SSO sessions are scoped per-user — one user cannot access another user's SSO session. Temporary credentials are stored in `sessionStorage` for the current browser tab only.
 
 **Option 3 — AWS Organizations (multi-account)**
 
@@ -217,18 +231,28 @@ Compute Engine VMs, Persistent Disks, Static IPs, Disk Snapshots, GKE Clusters, 
 ## Project Structure
 
 ```
-AI-Cloud-Cost-Detective/
+AI-Cloud-Cost-Detective-main/
 ├── backend/
 │   ├── main.py                 # FastAPI app — all API endpoints
 │   ├── cloud_scanner.py        # AWS scanner (87 services)
 │   ├── azure_scanner.py        # Azure scanner (20 services)
 │   ├── gcp_scanner.py          # GCP scanner (18 services)
 │   ├── ai_analyzer.py          # AI cost analysis engine (14 providers)
-│   ├── db.py                   # PostgreSQL database layer
+│   ├── db.py                   # PostgreSQL + in-memory fallback database layer
 │   ├── cloud_organizations.py  # AWS multi-account / SSO support
-│   ├── ownership.py            # Ownership validation
+│   ├── sso_manager.py          # AWS SSO device authorization flow
+│   ├── log_config.py           # Structured JSON logging setup
 │   ├── requirements.txt
+│   ├── pytest.ini
 │   ├── Dockerfile
+│   ├── entrypoint.sh           # Startup: JWT secret generation, uvicorn launch
+│   ├── tests/                  # pytest test suite
+│   │   ├── test_auth.py        # Signup, login, logout, token revocation
+│   │   ├── test_db.py          # In-memory DB operations
+│   │   ├── test_rate_limit.py  # Login rate limiting
+│   │   ├── test_validate_rate_limit.py  # /api/validate rate limiting
+│   │   ├── test_sso_isolation.py        # SSO session scoping per user
+│   │   └── test_health.py      # /health endpoint (in-memory, connected, degraded)
 │   ├── .env                    # Optional — AI API keys only (gitignored; copy from .env.example)
 │   └── .env.example
 │
@@ -236,41 +260,46 @@ AI-Cloud-Cost-Detective/
 │   ├── src/
 │   │   ├── pages/              # Dashboard, Analyze, History, Report, Login, Signup
 │   │   ├── components/         # Navbar, ServiceSelector, ProgressTracker, SSOAuth
-│   │   └── api.ts              # Backend API client
+│   │   ├── __tests__/          # vitest test suite
+│   │   ├── api.ts              # Backend API client (cookie-based auth)
+│   │   ├── AuthContext.tsx     # Auth state — hydrated from httpOnly cookie on mount
+│   │   └── App.tsx             # Routes + auth guard
 │   ├── nginx.conf              # Reverse proxy + security headers
-│   ├── vite.config.ts          # Build config (source maps disabled)
+│   ├── vite.config.ts          # Build + vitest config
 │   └── Dockerfile
 │
 ├── docker-compose.yml
-└── .env                        # Root env (optional — Postgres credential overrides only; gitignored)
+├── .env                        # Root env — POSTGRES_PASSWORD required (gitignored)
+└── .env.example
 ```
 
 ---
 
 ## API Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/auth/signup` | Create account |
-| `POST` | `/api/auth/login` | Login — returns JWT |
-| `POST` | `/api/auth/logout` | Revoke current token |
-| `POST` | `/api/auth/change-password` | Change password |
-| `GET` | `/api/regions` | Region list for provider |
-| `GET` | `/api/services` | Service list for provider |
-| `POST` | `/api/validate` | Pre-scan credential check |
-| `POST` | `/api/analyze` | Start scan + analysis |
-| `WS` | `/ws/progress/{id}` | Live scan progress |
-| `GET` | `/api/history` | Past analyses |
-| `GET` | `/api/history/{id}` | Single analysis result |
-| `DELETE` | `/api/history/{id}` | Delete own analysis |
-| `POST` | `/api/sso/start` | Begin AWS SSO device flow |
-| `GET` | `/api/sso/poll/{session}` | Poll SSO auth status |
-| `GET` | `/api/sso/accounts/{session}` | List SSO accounts/roles |
-| `POST` | `/api/sso/credentials` | Get temporary credentials |
-| `GET` | `/api/config/accounts` | List org/SSO accounts |
-| `POST` | `/api/config/accounts` | Add account |
-| `DELETE` | `/api/config/accounts/{id}` | Remove account |
-| `GET` | `/health` | Health check |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/auth/signup` | — | Create account |
+| `POST` | `/api/auth/login` | — | Login — sets httpOnly cookie |
+| `POST` | `/api/auth/logout` | ✓ | Revoke token, clear cookie |
+| `GET` | `/api/auth/me` | ✓ | Return current user info |
+| `POST` | `/api/auth/change-password` | ✓ | Change password |
+| `GET` | `/api/regions` | ✓ | Region list for provider |
+| `GET` | `/api/services` | ✓ | Service list for provider |
+| `POST` | `/api/validate` | ✓ | Pre-scan credential check (rate limited: 10/user/min) |
+| `POST` | `/api/analyze` | ✓ | Start scan + analysis |
+| `WS` | `/ws/progress/{id}` | ✓ | Live scan progress |
+| `GET` | `/api/history` | ✓ | Past analyses |
+| `GET` | `/api/history/{id}` | ✓ | Single analysis result |
+| `DELETE` | `/api/history/{id}` | ✓ | Delete own analysis |
+| `POST` | `/api/sso/start` | ✓ | Begin AWS SSO device flow |
+| `GET` | `/api/sso/poll/{session}` | ✓ | Poll SSO auth status |
+| `GET` | `/api/sso/accounts/{session}` | ✓ | List SSO accounts/roles |
+| `POST` | `/api/sso/credentials` | ✓ | Get temporary credentials |
+| `GET` | `/api/config/accounts` | ✓ | List org/SSO accounts |
+| `POST` | `/api/config/accounts` | ✓ | Add account |
+| `DELETE` | `/api/config/accounts/{id}` | ✓ | Remove account |
+| `GET` | `/health` | — | Health check (DB probe + status) |
 
 ---
 
@@ -315,19 +344,51 @@ The backend and database are not exposed to the internet — only port 3000 is p
 
 | Feature | Implementation |
 |---|---|
-| Authentication | JWT (HS256, 8-hour expiry) via `Depends(_verify_token)` on every protected endpoint |
-| JWT secret | Auto-generated at first startup using `secrets.token_hex(32)`; persisted in the `backend_data` Docker volume — never stored in source code |
+| Authentication | JWT (HS256, 8-hour expiry) stored in httpOnly, SameSite=strict cookies — not accessible to JavaScript (XSS-safe) |
+| Dual auth mode | Endpoints accept both cookie and `Authorization: Bearer` header for API/CLI use |
+| JWT secret | Auto-generated at first startup using `secrets.token_hex(32)`; persisted in the `backend_data` Docker volume |
 | Token revocation | JTI stored in `revoked_tokens` table; logout immediately invalidates the token |
-| Password storage | bcrypt (constant-time comparison prevents user enumeration) |
-| Rate limiting | Login: 20/min per IP, 10/min per email. Signup: 10/5 min per IP. Password change: 5/5 min per user |
+| Password storage | bcrypt — timing-safe comparison, constant-time dummy hash run even for unknown emails |
+| Rate limiting | Login: 20/min per IP + 10/min per email. Signup: 10/5min per IP. `/api/validate`: 10/min per user |
+| IP trust | `--forwarded-allow-ips` scoped to Docker network CIDR (`172.18.0.0/16`) — prevents X-Forwarded-For spoofing |
+| SSO isolation | SSO sessions are bound to the creating user's ID; cross-user access returns 403 |
+| SSRF prevention | SSO `start_url` restricted to `*.awsapps.com/*` by regex allowlist |
+| Single worker | Uvicorn runs 1 worker by default — prevents in-memory state (rate buckets, SSO sessions) from being split across processes |
 | Concurrent scans | Max 5 platform-wide, max 3 per user |
 | Credential handling | Cloud credentials never stored — in memory for scan duration only |
 | Input validation | Pydantic with field validators; emails, account IDs, subscription UUIDs, GCP project IDs all validated |
+| Request correlation | `X-Request-ID` header generated/forwarded on every request for log tracing |
+| Health check | `/health` performs a live DB query with 2s timeout; returns 503 `{"status":"degraded"}` if unreachable |
 | Auto data purge | Analyses older than 2 days deleted automatically every 12 hours |
-| Security headers | X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy, CSP |
+| Security headers | HSTS, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy, CSP |
 | Source maps | Disabled in production build; `.map` and `.ts` file routes blocked by nginx |
 | Container isolation | Backend runs as non-root `appuser`; database and backend ports not exposed publicly |
 | Error sanitization | Internal file paths stripped from error messages before reaching the client |
+
+---
+
+## Running Tests
+
+### Backend
+
+```bash
+# Install test dependencies
+pip install pytest pytest-asyncio httpx
+
+# Run from the backend directory
+cd backend
+pytest tests/ -v
+```
+
+The test suite covers: signup/login/logout, token revocation, in-memory DB operations, login rate limiting, `/api/validate` rate limiting, SSO session isolation (cross-user access denied), and `/health` in all three states (in-memory, connected, degraded).
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm test
+```
 
 ---
 
@@ -352,8 +413,8 @@ docker compose build backend && docker compose up -d backend
 # Full rebuild (no cache)
 docker compose build --no-cache && docker compose up -d
 
-# Reset a user's password (inside backend container)
-docker compose exec backend python3 create_user.py <email> <password>
+# Run backend tests inside the container
+docker compose exec backend python3 -m pytest tests/ -v
 ```
 
 ---
@@ -364,6 +425,14 @@ docker compose exec backend python3 create_user.py <email> <password>
 ```bash
 docker compose logs backend
 docker compose logs postgres
+```
+
+**`POSTGRES_PASSWORD must be set` error**
+
+Create a root `.env` file with the password:
+```bash
+python3 -c "import secrets; print('POSTGRES_PASSWORD=' + secrets.token_hex(24))" > .env
+docker compose up -d
 ```
 
 **Want to rotate the JWT secret (logs all users out)**
@@ -386,10 +455,3 @@ A fresh secret is generated on the next start.
 **GCP scan fails**
 - Ensure Project ID and service account JSON (or API key) are entered on the dashboard
 - The service account needs `roles/viewer` on the project
-
-**Login returns 500 after password reset**
-- Do not update `password_hash` via shell variable interpolation — the `$2b$...` hash gets mangled
-- Always reset passwords using Python inside the container:
-  ```bash
-  docker compose exec backend python3 create_user.py <email> <new-password>
-  ```
