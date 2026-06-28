@@ -106,7 +106,8 @@ export default function History() {
     .sort((a, b) => {
       if (sortField === 'savings') return parseSavings(b.estimated_savings) - parseSavings(a.estimated_savings)
       if (sortField === 'issues')  return b.issues_found - a.issues_found
-      return 0
+      // Default: newest first — explicit sort so switching sort fields and back works correctly
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
   return (

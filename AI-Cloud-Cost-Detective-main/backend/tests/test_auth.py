@@ -27,7 +27,8 @@ async def test_login_wrong_password(client):
 @pytest.mark.asyncio
 async def test_login_unknown_email(client):
     r = await client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "anything"})
-    assert r.status_code == 401
+    # Returns 404 so the UI can show a "create account" prompt without guessing
+    assert r.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -41,7 +42,8 @@ async def test_me_returns_user(client):
     await client.post("/api/auth/signup", json={"email": "me@example.com", "password": "password123"})
     r2 = await client.post("/api/auth/login", json={"email": "me@example.com", "password": "password123"})
     cookie = r2.cookies.get("token")
-    r3 = await client.get("/api/auth/me", cookies={"token": cookie})
+    # Use header instead of per-request cookies= (avoids httpx deprecation warning)
+    r3 = await client.get("/api/auth/me", headers={"cookie": f"token={cookie}"})
     assert r3.status_code == 200
     assert r3.json()["email"] == "me@example.com"
 
@@ -51,10 +53,10 @@ async def test_logout_clears_cookie(client):
     await client.post("/api/auth/signup", json={"email": "logout@example.com", "password": "password123"})
     r2 = await client.post("/api/auth/login", json={"email": "logout@example.com", "password": "password123"})
     cookie = r2.cookies.get("token")
-    r3 = await client.post("/api/auth/logout", cookies={"token": cookie})
+    r3 = await client.post("/api/auth/logout", headers={"cookie": f"token={cookie}"})
     assert r3.status_code == 200
     # After logout the token is revoked — /me should fail
-    r4 = await client.get("/api/auth/me", cookies={"token": cookie})
+    r4 = await client.get("/api/auth/me", headers={"cookie": f"token={cookie}"})
     assert r4.status_code == 401
 
 

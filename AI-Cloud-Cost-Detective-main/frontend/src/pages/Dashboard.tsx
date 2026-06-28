@@ -59,8 +59,16 @@ function loadPrefs(): Prefs {
   return defaults
 }
 
+// Sensitive credential fields — never written to localStorage
+const SENSITIVE_FIELDS = [
+  'awsSecretAccessKey', 'azureClientSecret', 'gcpApiKey', 'aiApiKey',
+] as const
+
 function savePrefs(prefs: Prefs) {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)) } catch { /* ignore */ }
+  // Strip secrets before persisting — credentials must not survive a browser close
+  const safe = { ...prefs }
+  for (const key of SENSITIVE_FIELDS) delete (safe as Partial<Prefs>)[key]
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(safe)) } catch { /* ignore */ }
 }
 
 const AI_PROVIDERS = [
