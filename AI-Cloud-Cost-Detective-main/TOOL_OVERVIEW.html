@@ -3,7 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI Cloud Cost Detective — How It Works</title>
+<title>AI Cloud Cost Detective — Multi-Cloud Cost Intelligence Platform</title>
+<meta name="description" content="AI Cloud Cost Detective scans AWS, Azure, and GCP to find unused resources and wasted spend. 87 AWS services, 14 AI providers, results in under 5 minutes.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="AI Cloud Cost Detective — Multi-Cloud Cost Intelligence">
+<meta property="og:description" content="Scan your entire cloud infrastructure across AWS, Azure, and GCP. Find idle resources, oversized instances, and unreviewed snapshots — with AI-powered fix recommendations.">
+<meta property="og:image" content="https://github.com/sakalareddy13/AI-Cloud-Cost-Detective/raw/main/assets/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI Cloud Cost Detective">
+<meta name="twitter:description" content="Find wasted cloud spend across AWS, Azure &amp; GCP in under 5 minutes. 87 services scanned. 14 AI providers. Self-hosted.">
+<link rel="canonical" href="https://github.com/sakalareddy13/AI-Cloud-Cost-Detective">
 <style>
 /* ── PALETTE ──────────────────────────────────────────────
    ground:   #0A1628   deep navy
@@ -67,10 +76,14 @@ nav{
   color:var(--muted);text-decoration:none;
 }
 .nav-links a:hover{color:var(--text)}
+.nav-links a:focus-visible{color:var(--accent);outline:2px solid var(--accent);outline-offset:4px;border-radius:3px}
+.skip-nav{position:absolute;top:-100%;left:1rem;padding:8px 16px;background:var(--accent);color:#0A1628;font-weight:700;font-size:13px;border-radius:0 0 6px 6px;z-index:999;transition:top .15s}
+.skip-nav:focus{top:0}
 
 /* ── HERO ─────────────────────────────────────────────── */
 .hero{
   min-height:100vh;
+  min-height:100svh;
   padding:140px 5vw 100px;
   position:relative;overflow:hidden;
   display:flex;align-items:center;
@@ -104,6 +117,7 @@ nav{
   font-size:clamp(38px,6.5vw,84px);
   font-weight:900;letter-spacing:-.035em;line-height:1.04;
   color:var(--text);margin-bottom:28px;
+  text-wrap:balance;
 }
 .hero-h1 em{font-style:normal;color:var(--accent)}
 .hero-sub{
@@ -120,6 +134,7 @@ nav{
   font-family:'Courier New',Courier,monospace;
   font-size:clamp(24px,3vw,36px);font-weight:700;
   color:var(--accent2);letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
 }
 .metric-l{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
 
@@ -136,6 +151,7 @@ nav{
   font-size:clamp(26px,4vw,52px);font-weight:900;
   letter-spacing:-.025em;line-height:1.08;
   color:var(--text);margin-bottom:18px;
+  text-wrap:balance;
 }
 .section-body{font-size:17px;line-height:1.75;color:var(--muted);max-width:560px}
 hr.section-rule{border:none;border-top:1px solid var(--border);margin:0 5vw}
@@ -272,8 +288,10 @@ footer strong{color:var(--accent)}
 </head>
 <body>
 
+<a href="#main-content" class="skip-nav">Skip to main content</a>
+
 <!-- NAV -->
-<nav>
+<nav aria-label="Site navigation">
   <div class="nav-brand">AI Cloud Cost Detective</div>
   <div class="nav-links">
     <a href="#problem">Problem</a>
@@ -284,6 +302,8 @@ footer strong{color:var(--accent)}
     <a href="#security">Security</a>
   </div>
 </nav>
+
+<main id="main-content">
 
 <!-- HERO -->
 <section class="hero">
@@ -339,7 +359,7 @@ footer strong{color:var(--accent)}
     <div class="bill">
       <div class="bill-top">
         <span class="bill-top-label">Cloud Invoice</span>
-        <span class="bill-top-date mono">June 2025</span>
+        <span class="bill-top-date mono">June 2026</span>
       </div>
       <div class="bill-body">
         <div class="bill-row"><span>Active web servers (EC2)</span><span class="amount">$1,240</span></div>
@@ -410,7 +430,12 @@ footer strong{color:var(--accent)}
       <h2 class="section-h2">How the system is built</h2>
       <p class="section-body">Everything runs inside your own environment — your browser talks to a backend that only your team can reach. Your cloud credentials never leave your infrastructure.</p>
     </div>
-    <canvas id="arch-canvas" height="400" aria-label="System architecture diagram"></canvas>
+    <canvas id="arch-canvas" height="400" aria-label="System architecture diagram showing Browser, Dashboard, FastAPI Backend, cloud scanners for AWS/Azure/GCP, AI Analyser, and PostgreSQL database"></canvas>
+    <noscript>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;margin:48px auto 0;max-width:920px;text-align:center;color:var(--muted);font-size:14px">
+        Architecture diagram requires JavaScript. The system connects a React frontend → FastAPI backend → AWS/Azure/GCP scanners → AI Analyser → PostgreSQL database.
+      </div>
+    </noscript>
   </div>
   <div class="wrap" style="margin-top:48px">
     <div class="tech-grid reveal">
@@ -445,7 +470,7 @@ footer strong{color:var(--accent)}
       <div class="service-scroll">
 
         <div class="svc-cat">Compute</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>EC2 / EBS / EIP / NAT</li>
           <li>Load Balancers (ALB/NLB/CLB)</li>
           <li>Auto Scaling Groups</li>
@@ -459,7 +484,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Storage &amp; Backup</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>S3</li>
           <li>EFS</li>
           <li>FSx</li>
@@ -467,7 +492,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Databases</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>RDS</li>
           <li>ElastiCache</li>
           <li>DynamoDB</li>
@@ -483,12 +508,12 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Serverless</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Lambda</li>
         </ul>
 
         <div class="svc-cat">Networking &amp; CDN</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>CloudFront</li>
           <li>API Gateway</li>
           <li>Transit Gateway</li>
@@ -502,7 +527,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Messaging &amp; Events</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>SQS</li>
           <li>SNS</li>
           <li>Kinesis Data Streams</li>
@@ -514,7 +539,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Analytics</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>EMR</li>
           <li>AWS Glue</li>
           <li>Athena</li>
@@ -523,7 +548,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">AI / ML</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>SageMaker</li>
           <li>Bedrock</li>
           <li>Rekognition</li>
@@ -532,7 +557,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Security &amp; Compliance</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>KMS</li>
           <li>Secrets Manager</li>
           <li>Systems Manager</li>
@@ -547,7 +572,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Management &amp; Observability</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>CloudWatch Synthetics</li>
           <li>CloudTrail</li>
           <li>AWS Config</li>
@@ -555,14 +580,14 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Developer Tools</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>CodeBuild</li>
           <li>CodePipeline</li>
           <li>CodeArtifact</li>
         </ul>
 
         <div class="svc-cat">Business &amp; Media</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Amazon Connect</li>
           <li>SES</li>
           <li>WorkSpaces</li>
@@ -583,7 +608,7 @@ footer strong{color:var(--accent)}
       <div class="service-scroll">
 
         <div class="svc-cat">Compute</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Virtual Machines</li>
           <li>AKS Clusters</li>
           <li>App Services</li>
@@ -591,19 +616,19 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Containers</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Container Registry (ACR)</li>
         </ul>
 
         <div class="svc-cat">Storage</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Managed Disks</li>
           <li>Disk Snapshots</li>
           <li>Storage Accounts</li>
         </ul>
 
         <div class="svc-cat">Databases</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Azure SQL Databases</li>
           <li>Cosmos DB</li>
           <li>Azure Cache for Redis</li>
@@ -612,7 +637,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Networking</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Public IP Addresses</li>
           <li>Load Balancers</li>
           <li>Application Gateways</li>
@@ -620,13 +645,13 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Messaging</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Service Bus</li>
           <li>Event Hubs</li>
         </ul>
 
         <div class="svc-cat">Security</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Key Vaults</li>
         </ul>
 
@@ -641,7 +666,7 @@ footer strong{color:var(--accent)}
       <div class="service-scroll">
 
         <div class="svc-cat">Compute</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Compute Engine VMs</li>
           <li>GKE Clusters</li>
           <li>Cloud Run</li>
@@ -650,7 +675,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Storage</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Persistent Disks</li>
           <li>Disk Snapshots</li>
           <li>Cloud Storage Buckets</li>
@@ -658,7 +683,7 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Databases</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Cloud SQL</li>
           <li>Cloud Spanner</li>
           <li>Cloud Bigtable</li>
@@ -666,19 +691,19 @@ footer strong{color:var(--accent)}
         </ul>
 
         <div class="svc-cat">Analytics &amp; AI</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>BigQuery Datasets</li>
           <li>Dataproc Clusters</li>
           <li>Vertex AI Endpoints</li>
         </ul>
 
         <div class="svc-cat">Messaging</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Pub/Sub Topics</li>
         </ul>
 
         <div class="svc-cat">Networking</div>
-        <ul class="service-list">
+        <ul class="service-list" role="list">
           <li>Static IP Addresses</li>
         </ul>
 
@@ -855,7 +880,7 @@ footer strong{color:var(--accent)}
   <div class="personas reveal">
 
     <div class="persona">
-      <div class="persona-icon">👩‍💻</div>
+      <div class="persona-icon" aria-hidden="true">👩‍💻</div>
       <div>
         <div class="persona-role">DevOps / Platform Engineer</div>
         <div class="persona-title">Find inactive resources across every region</div>
@@ -864,7 +889,7 @@ footer strong{color:var(--accent)}
     </div>
 
     <div class="persona">
-      <div class="persona-icon">👔</div>
+      <div class="persona-icon" aria-hidden="true">👔</div>
       <div>
         <div class="persona-role">CTO / Tech Lead</div>
         <div class="persona-title">See the full picture at a glance</div>
@@ -873,7 +898,7 @@ footer strong{color:var(--accent)}
     </div>
 
     <div class="persona">
-      <div class="persona-icon">📊</div>
+      <div class="persona-icon" aria-hidden="true">📊</div>
       <div>
         <div class="persona-role">Finance / FinOps</div>
         <div class="persona-title">Justify and reduce cloud spend</div>
@@ -882,7 +907,7 @@ footer strong{color:var(--accent)}
     </div>
 
     <div class="persona">
-      <div class="persona-icon">🚀</div>
+      <div class="persona-icon" aria-hidden="true">🚀</div>
       <div>
         <div class="persona-role">Startup / Small Team</div>
         <div class="persona-title">Make every dollar count</div>
@@ -893,101 +918,97 @@ footer strong{color:var(--accent)}
   </div>
 </section>
 
+</main><!-- /main-content -->
+
 <!-- FOOTER -->
 <footer>
   <p><strong>AI Cloud Cost Detective</strong></p>
   <p style="margin-top:8px;font-size:10px">87 AWS · 20 Azure · 18 GCP services &nbsp;·&nbsp; 14 AI providers &nbsp;·&nbsp; Self-hosted · Your data stays yours</p>
-  <p style="margin-top:6px;font-size:10px">© 2025 AI Cloud Cost Detective</p>
+  <p style="margin-top:6px;font-size:10px">© <span id="footer-year">2026</span> AI Cloud Cost Detective</p>
 </footer>
 
 <script>
+/* ── FOOTER YEAR ──────────────────────────────────── */
+(function(){ const el=document.getElementById('footer-year'); if(el) el.textContent=new Date().getFullYear(); })();
+
 /* ── ARCHITECTURE CANVAS ────────────────────────────── */
 (function(){
   const canvas = document.getElementById('arch-canvas');
   if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if(!ctx) return; // canvas disabled or unsupported
   const dpr = window.devicePixelRatio || 1;
 
-  function resize(){
-    const w = canvas.parentElement.clientWidth;
-    const h = Math.round(w * 400 / 920);
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    draw(w, h);
+  const C = {
+    ground:'#111E33', surface:'#182540',
+    border:'rgba(221,230,240,0.1)',
+    text:'#DDE6F0', muted:'#7A90A8',
+    accent:'#F5A623', teal:'#3ECFBF',
+    aws:'#FF9900', azure:'#0078D4', gcp:'#34A853', ai:'#9B59B6',
+  };
+
+  function box(s,x,y,w,h,label,sublabel,color,emoji){
+    x*=s;y*=s;w*=s;h*=s;
+    ctx.save();
+    ctx.shadowColor=color+'44'; ctx.shadowBlur=16*s;
+    ctx.beginPath(); ctx.roundRect(x,y,w,h,8*s);
+    ctx.fillStyle=C.surface; ctx.fill();
+    ctx.strokeStyle=color+'55'; ctx.lineWidth=1.5*s; ctx.stroke();
+    ctx.restore();
+    ctx.beginPath(); ctx.moveTo(x+10*s,y); ctx.lineTo(x+w-10*s,y);
+    ctx.strokeStyle=color; ctx.lineWidth=2.5*s; ctx.stroke();
+    if(emoji){ ctx.font=`${14*s}px serif`; ctx.textAlign='left'; ctx.fillText(emoji,x+8*s,y+22*s); }
+    ctx.font=`600 ${11*s}px system-ui,sans-serif`; ctx.fillStyle=C.text; ctx.textAlign='center';
+    ctx.fillText(label, x+w/2, y+(emoji?36*s:26*s));
+    if(sublabel){ ctx.font=`${9*s}px 'Courier New',monospace`; ctx.fillStyle=C.muted; ctx.fillText(sublabel,x+w/2,y+(emoji?50*s:40*s)); }
+  }
+
+  function arrow(s,x1,y1,x2,y2,color){
+    x1*=s;y1*=s;x2*=s;y2*=s;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    ctx.strokeStyle=color||C.border; ctx.lineWidth=1.5*s;
+    ctx.setLineDash([4*s,4*s]); ctx.stroke(); ctx.setLineDash([]);
+    const angle=Math.atan2(y2-y1,x2-x1), al=7*s;
+    ctx.beginPath(); ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-al*Math.cos(angle-0.4),y2-al*Math.sin(angle-0.4));
+    ctx.lineTo(x2-al*Math.cos(angle+0.4),y2-al*Math.sin(angle+0.4));
+    ctx.closePath(); ctx.fillStyle=color||C.border; ctx.fill();
+  }
+
+  function lbl(s,x,y,text,color){
+    x*=s;y*=s;
+    ctx.font=`${9*s}px 'Courier New',monospace`;
+    ctx.fillStyle=color||C.muted; ctx.textAlign='center';
+    ctx.fillText(text,x,y);
   }
 
   function draw(W, H){
-    const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
     const s = W / 920;
 
-    const C = {
-      ground:'#111E33', surface:'#182540',
-      border:'rgba(221,230,240,0.1)',
-      text:'#DDE6F0', muted:'#7A90A8',
-      accent:'#F5A623', teal:'#3ECFBF',
-      aws:'#FF9900', azure:'#0078D4', gcp:'#34A853', ai:'#9B59B6',
-    };
+    box(s,20,  30,110,64,'Browser',        'React UI',          C.teal,  '🖥️');
+    box(s,170, 30,110,64,'Dashboard',      'React Frontend',    C.teal,  '⚛');
+    box(s,330, 30,130,64,'FastAPI Backend','API + Auth',        C.accent,'⚡');
+    box(s,520,  20,110,54,'AWS Scanner',   '87 services',       C.aws,   '🟠');
+    box(s,520,  86,110,54,'Azure Scanner', '20 services',       C.azure, '🔵');
+    box(s,520, 152,110,54,'GCP Scanner',   '18 services',       C.gcp,   '🟢');
+    box(s,690,  60,130,110,'AI Analyser',  'Findings + Fixes',  C.ai,    '🧠');
+    box(s,330, 270,130,64,'PostgreSQL DB', 'History + Results', '#6B7280','💾');
 
-    function box(x,y,w,h,label,sublabel,color,emoji){
-      x*=s;y*=s;w*=s;h*=s;
-      ctx.save();
-      ctx.shadowColor=color+'44'; ctx.shadowBlur=16*s;
-      ctx.beginPath(); ctx.roundRect(x,y,w,h,8*s);
-      ctx.fillStyle=C.surface; ctx.fill();
-      ctx.strokeStyle=color+'55'; ctx.lineWidth=1.5*s; ctx.stroke();
-      ctx.restore();
-      ctx.beginPath(); ctx.moveTo(x+10*s,y); ctx.lineTo(x+w-10*s,y);
-      ctx.strokeStyle=color; ctx.lineWidth=2.5*s; ctx.stroke();
-      if(emoji){ ctx.font=`${14*s}px serif`; ctx.textAlign='left'; ctx.fillText(emoji,x+8*s,y+22*s); }
-      ctx.font=`600 ${11*s}px system-ui,sans-serif`; ctx.fillStyle=C.text; ctx.textAlign='center';
-      ctx.fillText(label, x+w/2, y+(emoji?36*s:26*s));
-      if(sublabel){ ctx.font=`${9*s}px 'Courier New',monospace`; ctx.fillStyle=C.muted; ctx.fillText(sublabel,x+w/2,y+(emoji?50*s:40*s)); }
-    }
-
-    function arrow(x1,y1,x2,y2,color){
-      x1*=s;y1*=s;x2*=s;y2*=s;
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
-      ctx.strokeStyle=color||C.border; ctx.lineWidth=1.5*s;
-      ctx.setLineDash([4*s,4*s]); ctx.stroke(); ctx.setLineDash([]);
-      const angle=Math.atan2(y2-y1,x2-x1), al=7*s;
-      ctx.beginPath(); ctx.moveTo(x2,y2);
-      ctx.lineTo(x2-al*Math.cos(angle-0.4),y2-al*Math.sin(angle-0.4));
-      ctx.lineTo(x2-al*Math.cos(angle+0.4),y2-al*Math.sin(angle+0.4));
-      ctx.closePath(); ctx.fillStyle=color||C.border; ctx.fill();
-    }
-
-    function lbl(x,y,text,color){
-      x*=s;y*=s;
-      ctx.font=`${9*s}px 'Courier New',monospace`;
-      ctx.fillStyle=color||C.muted; ctx.textAlign='center';
-      ctx.fillText(text,x,y);
-    }
-
-    box(20,  30, 110, 64, 'Browser',        'React UI',          C.teal,  '🖥️');
-    box(170, 30, 110, 64, 'Dashboard',      'React Frontend',    C.teal,  '⚛');
-    box(330, 30, 130, 64, 'FastAPI Backend','API + Auth',        C.accent,'⚡');
-    box(520,  20, 110, 54, 'AWS Scanner',   '87 services',       C.aws,   '🟠');
-    box(520,  86, 110, 54, 'Azure Scanner', '20 services',       C.azure, '🔵');
-    box(520, 152, 110, 54, 'GCP Scanner',   '18 services',       C.gcp,   '🟢');
-    box(690,  60, 130,110, 'AI Analyser',   'Findings + Fixes',  C.ai,    '🧠');
-    box(330, 270, 130, 64, 'PostgreSQL DB', 'History + Results', '#6B7280','💾');
-
-    arrow(130,62,170,62,C.teal+'88'); lbl(150,52,'HTTPS');
-    arrow(280,62,330,62,C.teal+'88'); lbl(305,52,'Request');
-    arrow(460,50,520,47,C.aws+'99');
-    arrow(460,62,520,113,C.azure+'99');
-    arrow(460,74,520,179,C.gcp+'99');
-    arrow(630,47,690,95,C.ai+'99');
-    arrow(630,113,690,115,C.ai+'99');
-    arrow(630,179,690,135,C.ai+'99');
-    lbl(660,75,'Resources');
-    arrow(755,170,755,290,C.ai+'66');
-    arrow(755,290,460,302,'#6B728088'); lbl(700,260,'Save results');
-    arrow(330,302,225,302,'#6B728066');
-    arrow(225,302,225,94,'#6B728066'); lbl(200,200,'History');
+    arrow(s,130,62,170,62,C.teal+'88'); lbl(s,150,52,'HTTPS');
+    arrow(s,280,62,330,62,C.teal+'88'); lbl(s,305,52,'Request');
+    arrow(s,460,50,520,47,C.aws+'99');
+    arrow(s,460,62,520,113,C.azure+'99');
+    arrow(s,460,74,520,179,C.gcp+'99');
+    arrow(s,630,47,690,95,C.ai+'99');
+    arrow(s,630,113,690,115,C.ai+'99');
+    arrow(s,630,179,690,135,C.ai+'99');
+    lbl(s,660,75,'Resources');
+    arrow(s,755,170,755,290,C.ai+'66');
+    arrow(s,755,290,460,302,'#6B728088'); lbl(s,700,260,'Save results');
+    arrow(s,330,302,225,302,'#6B728066');
+    arrow(s,225,302,225,94,'#6B728066'); lbl(s,200,200,'History');
 
     ctx.font=`${8*s}px 'Courier New',monospace`;
     ctx.fillStyle=C.muted; ctx.textAlign='left';
@@ -1003,7 +1024,20 @@ footer strong{color:var(--accent)}
     ctx.setLineDash([]);
   }
 
-  window.addEventListener('resize', resize);
+  function resize(){
+    const w = (canvas.parentElement && canvas.parentElement.clientWidth) || 920;
+    if(!w) return;
+    const h = Math.round(w * 400 / 920);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    try{ draw(w, h); }catch(e){ /* drawing error; canvas shows blank rather than crashing */ }
+  }
+
+  let _drawRaf;
+  function onResize(){ cancelAnimationFrame(_drawRaf); _drawRaf = requestAnimationFrame(resize); }
+  window.addEventListener('resize', onResize);
   resize();
 })();
 
@@ -1018,48 +1052,77 @@ footer strong{color:var(--accent)}
   canvas.parentElement.style.position='relative';
   canvas.parentElement.appendChild(overlay);
 
+  const octx = overlay.getContext('2d');
+  if(!octx) return;
   const dpr = window.devicePixelRatio || 1;
 
   const paths = [
-    {points:[[75,62],[150,62],[280,62],[395,62]],           color:'#3ECFBF',speed:0.6,offset:0},
-    {points:[[395,62],[490,50],[575,47],[655,95],[755,115]], color:'#FF9900',speed:0.5,offset:0.3},
+    {points:[[75,62],[150,62],[280,62],[395,62]],            color:'#3ECFBF',speed:0.6,offset:0},
+    {points:[[395,62],[490,50],[575,47],[655,95],[755,115]],  color:'#FF9900',speed:0.5,offset:0.3},
     {points:[[395,62],[490,62],[575,113],[655,115],[755,115]],color:'#0078D4',speed:0.55,offset:0.6},
     {points:[[395,62],[490,74],[575,179],[655,135],[755,115]],color:'#34A853',speed:0.45,offset:0.1},
-    {points:[[755,170],[755,290],[460,302],[395,302]],       color:'#9B59B6',speed:0.4,offset:0.5},
+    {points:[[755,170],[755,290],[460,302],[395,302]],        color:'#9B59B6',speed:0.4,offset:0.5},
   ];
 
-  function pathLen(pts){let l=0;for(let i=1;i<pts.length;i++){const dx=pts[i][0]-pts[i-1][0],dy=pts[i][1]-pts[i-1][1];l+=Math.hypot(dx,dy);}return l;}
-  function pointAt(pts,t){const tot=pathLen(pts);let dist=t*tot,acc=0;for(let i=1;i<pts.length;i++){const dx=pts[i][0]-pts[i-1][0],dy=pts[i][1]-pts[i-1][1],seg=Math.hypot(dx,dy);if(acc+seg>=dist){const f=(dist-acc)/seg;return[pts[i-1][0]+dx*f,pts[i-1][1]+dy*f];}acc+=seg;}return pts[pts.length-1];}
+  function segLen(pts){ let l=0; for(let i=1;i<pts.length;i++){ const dx=pts[i][0]-pts[i-1][0],dy=pts[i][1]-pts[i-1][1]; l+=Math.hypot(dx,dy); } return l; }
+  // Cache total path lengths once — avoids recomputing O(n) every animation frame
+  const pathLengths = paths.map(p => segLen(p.points));
 
-  function resize(){
-    const W=canvas.parentElement.clientWidth,H=Math.round(W*400/920);
-    overlay.style.width=W+'px';overlay.style.height=H+'px';
-    overlay.width=W*dpr;overlay.height=H*dpr;
+  function pointAt(pts,t,total){
+    if(pts.length<2||!total) return pts[0];
+    let dist=t*total,acc=0;
+    for(let i=1;i<pts.length;i++){
+      const dx=pts[i][0]-pts[i-1][0],dy=pts[i][1]-pts[i-1][1],seg=Math.hypot(dx,dy);
+      if(acc+seg>=dist){ const f=(dist-acc)/seg; return[pts[i-1][0]+dx*f,pts[i-1][1]+dy*f]; }
+      acc+=seg;
+    }
+    return pts[pts.length-1];
   }
-  window.addEventListener('resize',resize);resize();
 
-  let t=0;
+  function resizeOverlay(){
+    const W=(canvas.parentElement&&canvas.parentElement.clientWidth)||920;
+    const H=Math.round(W*400/920);
+    overlay.style.width=W+'px'; overlay.style.height=H+'px';
+    overlay.width=W*dpr; overlay.height=H*dpr;
+  }
+
+  let _oRaf;
+  function onOverlayResize(){ cancelAnimationFrame(_oRaf); _oRaf=requestAnimationFrame(resizeOverlay); }
+  window.addEventListener('resize', onOverlayResize);
+  resizeOverlay();
+
+  let t=0, rafId=0;
+
   function frame(){
-    const ctx=overlay.getContext('2d'),W=overlay.clientWidth,H=overlay.clientHeight;
-    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
-    const s=W/920; t+=0.003;
-    paths.forEach(p=>{
-      const pos=(t*p.speed+p.offset)%1;
-      const [px,py]=pointAt(p.points,pos);
-      ctx.beginPath();ctx.arc(px*s,py*s,4*s,0,Math.PI*2);
-      ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=8*s;
-      ctx.fill();ctx.shadowBlur=0;
-    });
-    requestAnimationFrame(frame);
+    try{
+      const W = overlay.width / dpr; // use canvas pixel size ÷ dpr, not clientWidth
+      const H = overlay.height / dpr;
+      octx.setTransform(dpr,0,0,dpr,0,0); octx.clearRect(0,0,W,H);
+      const s=W/920; t+=0.003;
+      paths.forEach((p,i)=>{
+        const pos=(t*p.speed+p.offset)%1;
+        const [px,py]=pointAt(p.points,pos,pathLengths[i]);
+        octx.beginPath(); octx.arc(px*s,py*s,4*s,0,Math.PI*2);
+        octx.fillStyle=p.color; octx.shadowColor=p.color; octx.shadowBlur=8*s;
+        octx.fill(); octx.shadowBlur=0;
+      });
+    }catch(e){ /* skip frame on error */ }
+    rafId=requestAnimationFrame(frame);
   }
-  frame();
+
+  function start(){ if(!rafId) rafId=requestAnimationFrame(frame); }
+  function stop(){ cancelAnimationFrame(rafId); rafId=0; }
+
+  // Pause animation when tab is hidden — avoids burning CPU/GPU on invisible content
+  document.addEventListener('visibilitychange', ()=>{ document.hidden ? stop() : start(); });
+  start();
 })();
 
 /* ── SCROLL REVEAL ──────────────────────────────────── */
 (function(){
   const els=document.querySelectorAll('.reveal');
   const io=new IntersectionObserver(entries=>{
-    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}});
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); } });
   },{threshold:0.12});
   els.forEach(el=>io.observe(el));
 })();
