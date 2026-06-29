@@ -23,13 +23,15 @@ function IssueCard({ issue }: { issue: Issue }) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }).catch(() => {
-      const ta = document.createElement('textarea')
-      ta.value = issue.fix_command
-      document.body.appendChild(ta); ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      // Clipboard API unavailable (insecure context or denied permission) —
+      // select the text in the pre element so the user can copy manually.
+      const pre = document.querySelector(`[data-fix-id="${issue.resource_id}"]`) as HTMLElement | null
+      if (pre) {
+        const range = document.createRange()
+        range.selectNodeContents(pre)
+        window.getSelection()?.removeAllRanges()
+        window.getSelection()?.addRange(range)
+      }
     })
   }
 
@@ -128,7 +130,7 @@ function IssueCard({ issue }: { issue: Issue }) {
             {copied ? 'Copied!' : 'Copy'}
           </button>
         </div>
-        <pre className="text-xs text-green-400 font-mono px-4 py-3 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">
+        <pre data-fix-id={issue.resource_id} className="text-xs text-green-400 font-mono px-4 py-3 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">
           {issue.fix_command}
         </pre>
       </div>

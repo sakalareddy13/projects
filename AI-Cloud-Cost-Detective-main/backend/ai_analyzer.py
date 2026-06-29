@@ -1,6 +1,18 @@
 """
-Cost analysis — uses Anthropic Claude when ANTHROPIC_API_KEY is set,
-otherwise falls back to built-in rule-based analysis (no API key needed).
+Multi-cloud cost analysis engine.
+
+AI path  — uses the first configured AI provider (Anthropic, OpenAI, Google Gemini,
+           AWS Bedrock, or any OpenAI-compatible provider such as Groq, Mistral,
+           DeepSeek, xAI, Cohere, Together, Perplexity, Azure OpenAI, Ollama).
+           Provider is auto-detected from environment API keys, or forced via
+           AI_PROVIDER. See _PROVIDER_REGISTRY and _DETECTION_ORDER below.
+
+Fallback — built-in rule-based engines require no API key and support all three
+           cloud providers: rule_based_analyze (AWS), rule_based_analyze_azure,
+           rule_based_analyze_gcp. All engines return output in the ANALYSIS_TOOL
+           schema so the frontend needs no cloud-specific handling.
+
+Entry point: analyze_resources(resources, cloud_provider, ai_provider, ai_api_key)
 """
 
 import json
@@ -584,10 +596,40 @@ def rule_based_analyze(resources: dict) -> dict:
 
 
 # ─── shared tool schema & prompt ─────────────────────────────────────────────
+#
+# ANALYSIS_TOOL is the core data contract between the AI layer and the frontend.
+# It is passed verbatim to every AI provider as a "tool" / "function" definition,
+# forcing structured JSON output instead of free-form text.
+#
+# Field reference (mirrors the frontend AnalysisResult / AnalysisIssue TypeScript types):
+#
+#   summary                   Human-readable paragraph summarising the scan findings.
+#   total_resources           Count of all resources examined (not just those with issues).
+#   issues_found              len(issues) — must equal the number of entries in the issues array.
+#   estimated_monthly_savings Sum of potential_monthly_savings across all issues (USD).
+#   estimated_annual_savings  estimated_monthly_savings × 12 (USD).
+#
+#   issues[].service          Cloud service name, e.g. "EC2", "S3", "Azure VM", "GCS".
+#   issues[].resource_name    Display name (tag Name / resource display name).
+#   issues[].resource_id      Cloud resource identifier (instance-id, ARN, resource URI…).
+#   issues[].region           Region/location string, e.g. "us-east-1", "eastus", "us-central1".
+#   issues[].account_id       Cloud account / subscription / project ID (may be empty string).
+#   issues[].account_name     Human-readable account name (may be empty string).
+#   issues[].issue_type       One of: "over-provisioned" | "unused" | "misconfigured" | "non-optimized"
+#   issues[].severity         One of: "high" | "medium" | "low"
+#   issues[].explanation      Plain-English description of why this is a cost issue.
+#   issues[].fix_command      CLI command or console step the user can run to resolve the issue.
+#                             For AWS: aws CLI command. For Azure: az CLI. For GCP: gcloud CLI.
+#   issues[].potential_monthly_savings  Estimated USD savings per month if the fix is applied.
+#
+# IMPORTANT: This same schema is used for AWS, Azure, and GCP scans. The rule-based
+# fallback engines (rule_based_analyze / _azure / _gcp) also produce output in this
+# exact shape so the frontend and downstream code need no cloud-specific handling.
+# ─────────────────────────────────────────────────────────────────────────────
 
 ANALYSIS_TOOL = {
     "name": "report_cost_analysis",
-    "description": "Report the AWS cost analysis findings with actionable recommendations",
+    "description": "Report cloud infrastructure cost analysis findings with actionable remediation steps",
     "input_schema": {
         "type": "object",
         "properties": {

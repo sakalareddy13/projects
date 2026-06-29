@@ -31,7 +31,7 @@ export default function ProgressTracker({ messages }: Props) {
                         : 'var(--color-text-secondary)'
 
         return (
-          <li key={`${i}-${msg.status}-${msg.message.slice(0, 20)}`} className="flex items-start gap-3">
+          <li key={i} className="flex items-start gap-3">
             <span className="mt-0.5 shrink-0">
               {isError ? (
                 <AlertCircle size={17} style={{ color: '#ef4444' }} />

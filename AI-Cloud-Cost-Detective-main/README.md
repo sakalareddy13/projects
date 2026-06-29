@@ -25,7 +25,7 @@ An AI-powered multi-cloud cost analysis tool. Connect your AWS, Azure, or GCP ac
 | Auth | JWT (bcrypt + PyJWT) via httpOnly cookies with JTI-based token revocation |
 | Cloud SDKs | boto3 (AWS), azure-mgmt (Azure), google-api-python-client (GCP) |
 | AI Analysis | Claude · GPT-4o · Gemini · Groq · DeepSeek · xAI · Mistral · Cohere · Together · Perplexity · Azure OpenAI · AWS Bedrock · Ollama · Built-in rule engine |
-| Database | PostgreSQL 15 (asyncpg) |
+| Database | PostgreSQL 16 (asyncpg) |
 | Live Updates | FastAPI WebSocket |
 | Logging | Structured JSON via python-json-logger with request-id correlation |
 | Tests | pytest + pytest-asyncio + httpx (backend) · vitest + jsdom (frontend) |
@@ -83,7 +83,9 @@ http://localhost:3000
 
 Create an account on the signup page and start scanning.
 
-> **Optional**: To add an AI provider, copy `backend/.env.example` to `backend/.env`, add your API key, and restart the backend (`docker compose restart backend`). Without a key the built-in rule engine runs for free.
+> **Optional**: To add an AI provider, copy `backend/.env.example` to `backend/.env`, uncomment the relevant `*_API_KEY` line, and restart the backend (`docker compose restart backend`). Without a key the built-in rule engine runs for free.
+
+> **Tip**: See `.env.example` (root) for PostgreSQL and shared settings, and `backend/.env.example` for AI keys, runtime tuning, and observability options.
 
 ---
 
@@ -108,6 +110,12 @@ Copy `backend/.env.example` to `backend/.env` only if you want to add an AI prov
 | `DATABASE_URL` | *(set by docker-compose)* | Pre-configured to connect to the postgres container. Only override if using an external database. |
 | `UVICORN_WORKERS` | `1` | **Must stay at 1** until rate-limit buckets and SSO sessions are externalized to Redis. Multiple workers split in-memory state silently. |
 | `DEBUG` | `false` | Set to `true` to enable Swagger UI at `/docs` and disable cookie `Secure` flag for plain HTTP local dev. |
+| `ENABLE_METRICS` | `false` | Set to `true` to expose a Prometheus `/metrics` endpoint. Requires `prometheus-fastapi-instrumentator` (already in `requirements.txt`). |
+| `LOG_FORMAT` | `json` | Set to `text` for human-readable logs during local development. |
+| `MAX_CONCURRENT_SCANS` | `5` | Platform-wide limit on parallel scans. |
+| `MAX_ANALYSES_PER_USER` | `3` | Per-user concurrent scan limit. |
+| `SCAN_TASK_TIMEOUT` | `600` | Per-scan timeout in seconds. |
+| `ANALYSIS_RETENTION_DAYS` | `2` | Auto-delete analyses older than this many days. |
 
 ---
 
@@ -326,7 +334,7 @@ Browser → FastAPI → Cloud Scanner(s) → AI Analyser → PostgreSQL
 |---|---|---|
 | `cost-detective-frontend` | React app served by nginx | `0.0.0.0:3000` |
 | `cost-detective-backend` | FastAPI + scanners | `127.0.0.1:8000` (internal) |
-| `cost-detective-db` | PostgreSQL 15 | `127.0.0.1:5432` (internal) |
+| `cost-detective-db` | PostgreSQL 16 | `127.0.0.1:5432` (internal) |
 | `cost-detective-tunnel` | Cloudflare tunnel — auto public URL | *(no port binding)* |
 
 The backend and database are not exposed to the internet — only port 3000 is public. The Cloudflare tunnel prints a randomly generated `trycloudflare.com` URL in its logs that exposes the frontend publicly without opening any firewall ports.
@@ -369,11 +377,18 @@ The backend and database are not exposed to the internet — only port 3000 is p
 
 ## Running Tests
 
-### Backend
+### CI (GitHub Actions)
+
+Tests run automatically on every push and pull request to `main` via `.github/workflows/ci.yml`. The pipeline runs:
+1. Backend pytest against a real PostgreSQL 16 instance
+2. TypeScript type-check (`tsc --noEmit`) + frontend vitest suite
+3. Docker build check for both images (push to main only)
+
+### Backend (local)
 
 ```bash
 # Install test dependencies
-pip install pytest pytest-asyncio httpx
+pip install -r requirements.txt
 
 # Run from the backend directory
 cd backend
@@ -382,7 +397,7 @@ pytest tests/ -v
 
 The test suite covers: signup/login/logout, token revocation, in-memory DB operations, login rate limiting, `/api/validate` rate limiting, SSO session isolation (cross-user access denied), and `/health` in all three states (in-memory, connected, degraded).
 
-### Frontend
+### Frontend (local)
 
 ```bash
 cd frontend

@@ -29,12 +29,16 @@ const FALLBACK_AWS_REGIONS = [
 const ACCOUNT_ID_RE = /^\d{12}$/
 const SAVED_KEY = 'cost_detective_env_config'
 
+const ENV_SENSITIVE_FIELDS: (keyof EnvConfig)[] = ['awsSecretAccessKey']
+
 export function loadSavedConfig(): EnvConfig | null {
   try {
     const raw = localStorage.getItem(SAVED_KEY)
     if (!raw) return null
     const cfg = JSON.parse(raw) as EnvConfig
     if (!cfg.cloudProvider) cfg.cloudProvider = 'aws'
+    // Strip any secrets that may have been persisted by older versions
+    for (const key of ENV_SENSITIVE_FIELDS) delete cfg[key]
     return cfg
   } catch { return null }
 }
@@ -87,7 +91,11 @@ export default function EnvironmentConfig({ onSave }: Props) {
     }
   }, [])
 
-  useEffect(() => { aws.regions().then((r) => setAllRegions(r.regions)).catch(() => {}) }, [])
+  useEffect(() => {
+    aws.regions()
+      .then((r) => setAllRegions(r.regions))
+      .catch(() => setLoadError('Could not load regions from server — using defaults.'))
+  }, [])
   useEffect(() => { if (useOrg) loadAccounts() }, [useOrg, loadAccounts])
 
   const handleAddAccount = async () => {
@@ -141,7 +149,10 @@ export default function EnvironmentConfig({ onSave }: Props) {
       ssoAccountCount: authMode === 'sso' ? ssoCreds.length : undefined,
     }
     try {
-      localStorage.setItem(SAVED_KEY, JSON.stringify(config))
+      // Strip secrets before persisting — credentials must never survive a browser close
+      const safe = { ...config }
+      for (const key of ENV_SENSITIVE_FIELDS) delete safe[key]
+      localStorage.setItem(SAVED_KEY, JSON.stringify(safe))
     } catch {
       setSaveError('Could not save settings — browser storage may be full or disabled.')
       return

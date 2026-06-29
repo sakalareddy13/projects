@@ -1,12 +1,16 @@
 """GCP resource scanner — scans a project for cost optimization opportunities."""
 
+import concurrent.futures
 import datetime
 import json
+import logging
 import os
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait as _futures_wait
 from dataclasses import dataclass
 from typing import Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 _creds_local = threading.local()
 
@@ -696,7 +700,7 @@ def scan_vertex_ai_endpoints(creds: GCPCredentials, regions: list[str]) -> list:
 #  Service dispatch
 # ════════════════════════════════════════════════════════════════════════════════
 
-_SERVICE_MAP: dict[str, callable] = {
+_SERVICE_MAP: dict[str, Callable[..., list]] = {
     "compute_instances":   scan_compute_instances,
     "persistent_disks":    scan_persistent_disks,
     "static_ips":          scan_static_ips,
@@ -762,13 +766,27 @@ def scan_resources(
         try:
             return service_key, _SERVICE_MAP[service_key](creds, regions)
         except Exception as e:
-            _progress(f"GCP: {service_key} scan error: {e}")
+            logger.warning("gcp_scanner.error", extra={"service": service_key, "error": str(e)})
+            _progress(f"GCP: {service_key} scan skipped (check server logs for details)")
             return service_key, []
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(_scan_one, s): s for s in services_to_scan}
-        for future in as_completed(futures):
-            key, items = future.result()
-            result[key] = items
+    _SCAN_TIMEOUT = int(os.environ.get("SCAN_TASK_TIMEOUT", "600"))
+    pool = ThreadPoolExecutor(max_workers=5)
+    try:
+        futs = {pool.submit(_scan_one, s): s for s in services_to_scan}
+        done, pending = _futures_wait(futs, timeout=_SCAN_TIMEOUT)
+        if pending:
+            logger.warning(
+                "gcp_scanner.timeout",
+                extra={"detail": f"{len(pending)} GCP scan task(s) did not complete within {_SCAN_TIMEOUT}s"},
+            )
+        for fut in done:
+            try:
+                key, items = fut.result()
+                result[key] = items
+            except Exception as e:
+                logger.warning("gcp_scanner.task_error", extra={"error": str(e)})
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
     return result

@@ -8,7 +8,8 @@ import datetime
 import logging
 import os
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait as _futures_wait
 from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
@@ -2088,9 +2089,28 @@ def scan_resources(
             logger.warning("scanner.error", extra={"detail": f"Scan error [{label}]: ", "error": str(e)})
             return bucket_key, []
 
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        for bucket_key, results in pool.map(_run, tasks):
-            with lock:
-                all_resources[bucket_key].extend(results)
+    # Use explicit submit+wait so hung boto3 calls don't block forever.
+    # Tasks that don't complete within the timeout are logged and skipped.
+    _SCAN_TIMEOUT = int(os.environ.get("SCAN_TASK_TIMEOUT", "600"))
+
+    pool = ThreadPoolExecutor(max_workers=max_workers)
+    try:
+        futs = {pool.submit(_run, task): task for task in tasks}
+        done, pending = _futures_wait(futs, timeout=_SCAN_TIMEOUT)
+        if pending:
+            logger.warning(
+                "scanner.timeout",
+                extra={"detail": f"{len(pending)} scan task(s) did not complete within {_SCAN_TIMEOUT}s — partial results returned"},
+            )
+        for fut in done:
+            try:
+                bucket_key, results = fut.result()
+                with lock:
+                    all_resources[bucket_key].extend(results)
+            except Exception as e:
+                label = futs[fut][3] if len(futs[fut]) > 3 else "?"
+                logger.warning("scanner.error", extra={"detail": f"Scan task failed [{label}]", "error": str(e)})
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
     return all_resources

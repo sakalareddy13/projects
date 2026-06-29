@@ -59,17 +59,16 @@ if not JWT_SECRET or len(JWT_SECRET) < 32:
 _analysis_progress: dict[str, list] = {}
 _PROGRESS_CAP = 200
 
-# Cap simultaneous heavy scans so the server doesn't get overwhelmed
-_MAX_CONCURRENT_SCANS = 5
+# Cap simultaneous heavy scans — configurable via env vars
+_MAX_CONCURRENT_SCANS = int(os.getenv("MAX_CONCURRENT_SCANS", "5"))
+_MAX_ANALYSES_PER_USER = int(os.getenv("MAX_ANALYSES_PER_USER", "3"))
 _analysis_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_SCANS)
 _active_scans = 0  # explicit counter — avoids accessing asyncio.Semaphore._value (private)
+_active_scans_lock = asyncio.Lock()
 
 # Rate limiter: keyed by (ip, action) — prevents single-IP brute force even across emails
 _rate_buckets: dict[str, list] = defaultdict(list)
 _rate_lock = asyncio.Lock()
-
-# Per-user concurrent analysis cap (prevents DoS flooding the analysis queue)
-_MAX_ANALYSES_PER_USER = 3
 
 # Lock for concurrent file writes to cloud_accounts.json
 _accounts_file_lock = asyncio.Lock()
@@ -96,13 +95,16 @@ async def _check_rate_limit(key: str, max_attempts: int = 10, window_seconds: in
 
 # ─── lifespan ────────────────────────────────────────────────────────────────
 
+_ANALYSIS_RETENTION_DAYS = int(os.getenv("ANALYSIS_RETENTION_DAYS", "2"))
+
+
 async def _history_purge_loop():
     """Background task: delete old analyses and expired revoked tokens every 12 hours."""
     while True:
         try:
-            n = await db.purge_old_analyses(days=2)
+            n = await db.purge_old_analyses(days=_ANALYSIS_RETENTION_DAYS)
             if n:
-                logger.info("purge.analyses.complete", extra={"deleted": n, "days": 2})
+                logger.info("purge.analyses.complete", extra={"deleted": n, "days": _ANALYSIS_RETENTION_DAYS})
             await db.purge_revoked_tokens()
         except Exception as exc:
             logger.error("purge.error", extra={"error": str(exc)}, exc_info=exc)
@@ -128,7 +130,19 @@ _COOKIE_SECURE = not _DEBUG
 
 app = FastAPI(
     title="AI Cloud Cost Detective",
+    description=(
+        "Multi-cloud cost analysis backend. Scans AWS, Azure, and GCP resources "
+        "and returns prioritised cost-saving recommendations via AI or built-in rules.\n\n"
+        "**Interactive docs** are available at `/docs` (Swagger UI) and `/redoc` (ReDoc) "
+        "when `DEBUG=true`. To generate a static OpenAPI spec for CI or integrators:\n"
+        "```\n"
+        "python3 -c \"from main import app; import json; print(json.dumps(app.openapi(), indent=2))\" "
+        "> openapi.json\n"
+        "```"
+    ),
     lifespan=lifespan,
+    # Docs are only served in debug/dev mode. In production, generate a static
+    # openapi.json at build time (see description above) and commit it to the repo.
     docs_url="/docs" if _DEBUG else None,
     redoc_url="/redoc" if _DEBUG else None,
     openapi_url="/openapi.json" if _DEBUG else None,
@@ -176,6 +190,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─── observability ────────────────────────────────────────────────────────────
+
+# Expose a Prometheus-compatible /metrics endpoint when ENABLE_METRICS=true.
+# Scrape from within the Docker network; not meant for public exposure.
+if os.getenv("ENABLE_METRICS", "false").lower() == "true":
+    try:
+        from prometheus_fastapi_instrumentator import Instrumentator
+        Instrumentator(
+            should_group_status_codes=True,
+            should_ignore_untemplated=True,
+            excluded_handlers=["/health", "/metrics"],
+        ).instrument(app).expose(app)
+        logger.info("metrics.enabled", extra={"endpoint": "/metrics"})
+    except ImportError:
+        logger.warning("metrics.disabled", extra={"reason": "prometheus-fastapi-instrumentator not installed"})
 
 # ─── auth helpers ─────────────────────────────────────────────────────────────
 
@@ -609,11 +639,27 @@ async def get_services(provider: str = "aws", _: dict = Depends(_verify_token)):
     return {"services": AWS_SERVICES}
 
 
-_SSO_EXPIRY_KEYWORDS = ("expired", "token", "sso", "unauthorized", "refresh", "not authorized", "credentials")
-
 def _is_sso_expiry_error(exc: Exception) -> bool:
+    """Return True if exc indicates an expired or missing AWS SSO/credential session."""
+    try:
+        import botocore.exceptions as _bce
+        # Check specific botocore SSO exception types (botocore >= 1.29)
+        _sso_exc_names = ("TokenRetrievalError", "SSOTokenLoadError", "UnauthorizedSSOTokenError")
+        _sso_types = tuple(filter(None, (getattr(_bce, n, None) for n in _sso_exc_names)))
+        if _sso_types and isinstance(exc, _sso_types):
+            return True
+        # ClientError carries a structured error code — more reliable than message scanning
+        if isinstance(exc, _bce.ClientError):
+            code = exc.response.get("Error", {}).get("Code", "")
+            return code in {
+                "ExpiredTokenException", "InvalidClientTokenId",
+                "AuthFailure", "TokenExpiredException", "UnauthorizedException",
+            }
+    except Exception:
+        pass
+    # Narrow text fallback for non-botocore exceptions (e.g. third-party wrappers)
     msg = str(exc).lower()
-    return any(k in msg for k in _SSO_EXPIRY_KEYWORDS)
+    return ("expired" in msg or "not authorized" in msg) and ("sso" in msg or "token" in msg)
 
 
 @app.get("/api/config/accounts")
@@ -680,13 +726,16 @@ async def add_account(req: AccountRequest, _: dict = Depends(_verify_token)):
         }}
 
     async with _accounts_file_lock:
-        accounts: list = []
-        if os.path.exists(filepath):
+        def _read() -> list:
+            if not os.path.exists(filepath):
+                return []
             try:
                 with open(filepath) as f:
-                    accounts = _json.load(f).get("accounts", [])
+                    return _json.load(f).get("accounts", [])
             except Exception:
-                accounts = []
+                return []
+
+        accounts = await asyncio.to_thread(_read)
 
         if any(a.get("account_id") == req.account_id for a in accounts):
             raise HTTPException(status_code=400, detail="Account already exists")
@@ -699,7 +748,7 @@ async def add_account(req: AccountRequest, _: dict = Depends(_verify_token)):
             "role_arn": req.role_arn if req.role_arn else f"arn:aws:iam::{req.account_id}:role/CostDetectiveRole",
         }
         accounts.append(new_entry)
-        _write_accounts_inplace(filepath, accounts)
+        await asyncio.to_thread(_write_accounts_inplace, filepath, accounts)
 
     return {"account": new_entry}
 
@@ -712,17 +761,19 @@ async def remove_account(account_id: str, _: dict = Depends(_verify_token)):
     filepath = os.getenv("AWS_ACCOUNTS_FILE", "/app/cloud_accounts.json")
 
     async with _accounts_file_lock:
-        accounts: list = []
-        if os.path.exists(filepath):
+        def _read() -> list:
+            if not os.path.exists(filepath):
+                return []
             try:
                 with open(filepath) as f:
-                    accounts = _json.load(f).get("accounts", [])
+                    return _json.load(f).get("accounts", [])
             except Exception:
-                accounts = []
+                return []
 
+        accounts = await asyncio.to_thread(_read)
         updated = [a for a in accounts if a.get("account_id") != account_id]
         if updated != accounts:
-            _write_accounts_inplace(filepath, updated)
+            await asyncio.to_thread(_write_accounts_inplace, filepath, updated)
 
     return {"status": "removed"}
 
@@ -754,6 +805,9 @@ def _validate_project_id(proj_id: str) -> str:
     return proj_id
 
 
+_AWS_KEY_ID_RE = re.compile(r'^(AKIA|ASIA|AROA|AIDA|ANPA|ANVA|APKA)[A-Z0-9]{16}$')
+
+
 class ValidateRequest(BaseModel):
     cloud_provider: str = "aws"
     subscription_id: Optional[str] = None
@@ -770,15 +824,26 @@ class ValidateRequest(BaseModel):
     ai_api_key: Optional[str] = None
     sso_credentials: Optional[list[SSOCredentialItem]] = None
 
+    @field_validator("aws_access_key_id")
+    @classmethod
+    def validate_aws_key_id(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            v = v.strip()
+            if v and not _AWS_KEY_ID_RE.match(v):
+                raise ValueError(
+                    "Invalid AWS Access Key ID. Expected a 20-character key starting with AKIA or ASIA."
+                )
+        return v
+
 
 @app.post("/api/validate")
 async def validate_credentials(req: ValidateRequest, user_info: dict = Depends(_verify_token)):
-    await _check_rate_limit(f"validate:{user_info['user_id']}", max_attempts=10, window_seconds=60)
     """
     Lightweight pre-flight check that verifies credentials/connectivity for the
     chosen cloud provider BEFORE starting a full scan.  Returns 200 on success or
     400 with a human-readable detail string on failure.
     """
+    await _check_rate_limit(f"validate:{user_info['user_id']}", max_attempts=10, window_seconds=60)
     provider = req.cloud_provider.lower()
 
     # ── AWS ───────────────────────────────────────────────────────────────────
@@ -968,10 +1033,10 @@ async def _run_analysis(analysis_id: str, user_id: int, req: AnalyzeRequest):
         asyncio.run_coroutine_threadsafe(_push(analysis_id, msg), loop)
 
     try:
-        if _active_scans >= _MAX_CONCURRENT_SCANS:
-            await _push(analysis_id, f"Waiting for a free scan slot (max {_MAX_CONCURRENT_SCANS} concurrent)...")
-
-        _active_scans += 1
+        async with _active_scans_lock:
+            if _active_scans >= _MAX_CONCURRENT_SCANS:
+                await _push(analysis_id, f"Waiting for a free scan slot (max {_MAX_CONCURRENT_SCANS} concurrent)...")
+            _active_scans += 1
         async with _analysis_semaphore:
             provider = req.cloud_provider
 
@@ -1131,7 +1196,8 @@ async def _run_analysis(analysis_id: str, user_id: int, req: AnalyzeRequest):
         if isinstance(e, asyncio.CancelledError):
             raise
     finally:
-        _active_scans -= 1
+        async with _active_scans_lock:
+            _active_scans -= 1
         await asyncio.sleep(5)
         _analysis_progress.pop(analysis_id, None)
 

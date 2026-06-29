@@ -277,6 +277,24 @@
     background: var(--color-ghost-hover-bg);
   }
 
+  /* Navbar nav-link — hover handled by CSS to avoid inline DOM style mutation */
+  .app-banner .nav-link {
+    color: rgba(255,255,255,0.58);
+    background: transparent;
+    border: 1px solid transparent;
+    font-weight: 400;
+    text-decoration: none;
+  }
+  .app-banner .nav-link:hover {
+    color: #fff;
+  }
+  .app-banner .nav-link--active {
+    color: #fff;
+    background: rgba(255,255,255,0.13);
+    border-color: rgba(255,255,255,0.12);
+    font-weight: 600;
+  }
+
   /* Navbar always-dark override */
   .app-banner .btn-ghost {
     color: rgba(255,255,255,0.65);

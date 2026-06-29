@@ -1,11 +1,15 @@
 """Azure resource scanner — scans a subscription for cost optimization opportunities."""
 
+import concurrent.futures
 import datetime
+import logging
 import os
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait as _futures_wait
 from dataclasses import dataclass
 from typing import Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 # Thread-local storage for credential injection during scans
 _tls = threading.local()
@@ -706,7 +710,7 @@ def scan_mysql(creds: AzureCredentials, locations: list[str]) -> list:
 #  Service dispatch
 # ════════════════════════════════════════════════════════════════════════════════
 
-_SERVICE_MAP: dict[str, callable] = {
+_SERVICE_MAP: dict[str, Callable[..., list]] = {
     "virtual_machines":    scan_virtual_machines,
     "managed_disks":       scan_managed_disks,
     "snapshots":           scan_disk_snapshots,
@@ -751,18 +755,33 @@ def scan_resources(
     services_to_scan = [s for s in services if s in _SERVICE_MAP]
     result: dict[str, list] = {}
 
+    _SCAN_TIMEOUT = int(os.environ.get("SCAN_TASK_TIMEOUT", "600"))
+
     def _scan_one(service_key: str) -> tuple[str, list]:
         _progress(f"Azure: scanning {service_key}...")
         try:
             return service_key, _SERVICE_MAP[service_key](creds, locations)
         except Exception as e:
-            _progress(f"Azure: {service_key} scan error: {e}")
+            logger.warning("azure_scanner.error", extra={"service": service_key, "error": str(e)})
+            _progress(f"Azure: {service_key} scan skipped (check server logs for details)")
             return service_key, []
 
-    with ThreadPoolExecutor(max_workers=5, initializer=_worker_init, initargs=(credential,)) as executor:
-        futures = {executor.submit(_scan_one, s): s for s in services_to_scan}
-        for future in as_completed(futures):
-            key, items = future.result()
-            result[key] = items
+    pool = ThreadPoolExecutor(max_workers=5, initializer=_worker_init, initargs=(credential,))
+    try:
+        futs = {pool.submit(_scan_one, s): s for s in services_to_scan}
+        done, pending = _futures_wait(futs, timeout=_SCAN_TIMEOUT)
+        if pending:
+            logger.warning(
+                "azure_scanner.timeout",
+                extra={"detail": f"{len(pending)} Azure scan task(s) did not complete within {_SCAN_TIMEOUT}s"},
+            )
+        for fut in done:
+            try:
+                key, items = fut.result()
+                result[key] = items
+            except Exception as e:
+                logger.warning("azure_scanner.task_error", extra={"error": str(e)})
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
     return result

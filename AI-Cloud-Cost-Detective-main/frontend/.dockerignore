@@ -1,3 +1,9 @@
 node_modules
 dist
-.git
+.vite
+*.log
+.env
+.env.*
+!.env.example
+src/__tests__
+coverage

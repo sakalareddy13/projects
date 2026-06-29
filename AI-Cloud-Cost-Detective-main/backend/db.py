@@ -10,6 +10,19 @@ logger = logging.getLogger(__name__)
 
 pool: Optional[asyncpg.Pool] = None
 
+# ── In-memory fallback stores ─────────────────────────────────────────────────
+# Used when DATABASE_URL is not set or the Postgres connection fails at startup.
+#
+# LIMITATIONS — do not use this mode in production:
+#   • No persistence: all data is lost on process restart.
+#   • No concurrency safety across multiple OS processes (UVICORN_WORKERS must be 1).
+#   • No pagination or indexed lookups: get_analyses_by_user is an O(n) full scan.
+#   • No size cap: _analyses_store grows unbounded until purge_old_analyses runs.
+#   • purge_old_analyses uses ISO string comparison which is timezone-fragile.
+#
+# Intended use: local development without a running Postgres instance.
+# The /health endpoint reports db="in-memory" when this mode is active.
+# ─────────────────────────────────────────────────────────────────────────────
 _users_store: dict[str, dict] = {}
 _analyses_store: dict[str, dict] = {}
 _user_counter = 0

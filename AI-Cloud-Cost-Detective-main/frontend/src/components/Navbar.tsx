@@ -71,20 +71,7 @@ export default function Navbar() {
             { to: '/history', Icon: History,   label: 'History'   },
           ].map(({ to, Icon, label }) => (
             <Link key={to} to={to}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
-              style={{
-                color: isActive(to) ? '#fff' : 'rgba(255,255,255,0.58)',
-                background: isActive(to) ? 'rgba(255,255,255,0.13)' : 'transparent',
-                border: isActive(to) ? '1px solid rgba(255,255,255,0.12)' : '1px solid transparent',
-                fontWeight: isActive(to) ? 600 : 400,
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive(to)) (e.currentTarget as HTMLElement).style.color = '#fff'
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive(to)) (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.58)'
-              }}
+              className={`nav-link flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all${isActive(to) ? ' nav-link--active' : ''}`}
             >
               <Icon size={14} />
               <span className="hidden sm:inline">{label}</span>

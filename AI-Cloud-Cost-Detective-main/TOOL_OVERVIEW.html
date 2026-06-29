@@ -443,8 +443,9 @@ footer strong{color:var(--accent)}
       <div class="tech-card"><div class="tech-card-icon">⚡</div><div class="tech-card-title">FastAPI Backend</div><div class="tech-card-desc">Python 3.11. Async throughout. JWT auth with JTI-based token revocation. Rate limiting on every public endpoint. Runs as non-root user.</div></div>
       <div class="tech-card"><div class="tech-card-icon">☁️</div><div class="tech-card-title">Cloud Scanners</div><div class="tech-card-desc">Three dedicated modules — boto3 (AWS, 87 services), azure-mgmt (Azure, 20 services), google-api-python-client (GCP, 18 services). Only requested services are scanned.</div></div>
       <div class="tech-card"><div class="tech-card-icon">🧠</div><div class="tech-card-title">AI Analyser</div><div class="tech-card-desc">14 providers supported. Auto-detects the first available API key. Falls back to built-in rule engine if no key is configured — zero cost, zero config.</div></div>
-      <div class="tech-card"><div class="tech-card-icon">💾</div><div class="tech-card-title">PostgreSQL 15</div><div class="tech-card-desc">Stores analyses, users, and revoked tokens. Analyses auto-purged after 2 days. Users can delete individual entries. In-memory fallback when no DB is configured.</div></div>
+      <div class="tech-card"><div class="tech-card-icon">💾</div><div class="tech-card-title">PostgreSQL 16</div><div class="tech-card-desc">Stores analyses, users, and revoked tokens. Analyses auto-purged after 2 days. Users can delete individual entries. In-memory fallback when no DB is configured.</div></div>
       <div class="tech-card"><div class="tech-card-icon">🐳</div><div class="tech-card-title">Docker Compose</div><div class="tech-card-desc">Four containers — frontend, backend, database, and a Cloudflare tunnel for instant public access. One command starts everything. Backend and database ports are not exposed publicly.</div></div>
+      <div class="tech-card"><div class="tech-card-icon">⚙️</div><div class="tech-card-title">GitHub Actions CI</div><div class="tech-card-desc">Automated pipeline on every push and pull request: backend pytest against real PostgreSQL 16, TypeScript type-check, frontend vitest, and Docker build validation.</div></div>
     </div>
   </div>
 </div>
@@ -924,7 +925,29 @@ footer strong{color:var(--accent)}
 <footer>
   <p><strong>AI Cloud Cost Detective</strong></p>
   <p style="margin-top:8px;font-size:10px">87 AWS · 20 Azure · 18 GCP services &nbsp;·&nbsp; 14 AI providers &nbsp;·&nbsp; Self-hosted · Your data stays yours</p>
-  <p style="margin-top:6px;font-size:10px">© <span id="footer-year">2026</span> AI Cloud Cost Detective</p>
+  <p style="margin-top:16px;font-size:11px;line-height:2;letter-spacing:0.01em;max-width:760px;margin-left:auto;margin-right:auto">
+    <span style="color:var(--accent2)">#AWS</span> &nbsp;
+    <span style="color:var(--accent2)">#Azure</span> &nbsp;
+    <span style="color:var(--accent2)">#GCP</span> &nbsp;
+    <span style="color:var(--accent2)">#CloudCost</span> &nbsp;
+    <span style="color:var(--accent2)">#FinOps</span> &nbsp;
+    <span style="color:var(--accent2)">#Python</span> &nbsp;
+    <span style="color:var(--accent2)">#FastAPI</span> &nbsp;
+    <span style="color:var(--accent2)">#React</span> &nbsp;
+    <span style="color:var(--accent2)">#TypeScript</span> &nbsp;
+    <span style="color:var(--accent2)">#Docker</span> &nbsp;
+    <span style="color:var(--accent2)">#DevOps</span> &nbsp;
+    <span style="color:var(--accent2)">#OpenSource</span> &nbsp;
+    <span style="color:var(--accent2)">#AI</span> &nbsp;
+    <span style="color:var(--accent2)">#LLM</span> &nbsp;
+    <span style="color:var(--accent2)">#CloudComputing</span> &nbsp;
+    <span style="color:var(--accent2)">#MachineLearning</span> &nbsp;
+    <span style="color:var(--accent2)">#SoftwareEngineering</span> &nbsp;
+    <span style="color:var(--accent2)">#FullStack</span> &nbsp;
+    <span style="color:var(--accent2)">#GitHubActions</span> &nbsp;
+    <span style="color:var(--accent2)">#SelfHosted</span>
+  </p>
+  <p style="margin-top:12px;font-size:10px">© <span id="footer-year">2026</span> AI Cloud Cost Detective</p>
 </footer>
 
 <script>
